@@ -166,6 +166,9 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   await app.register(proxy, { upstream: cfg.BROWSER_VNC_URL, prefix: "/browser", rewritePrefix: "/", websocket: true, ...auth });
 
   // ---- Einstellungen, Verlauf, Outbox ----
+  // Zugangsdaten für Fredys HTTP-Adapter (nur mit Login sichtbar).
+  app.get("/api/ingest-info", auth, async () => ({ endpoint: "http://instantflat:8080/api/ingest", token: cfg.INGEST_TOKEN }));
+
   app.get("/api/settings", auth, async () => ({ mode: getMode(db), dailyLimit: getDailyLimit(db), dryRun: cfg.DRY_RUN, nightFrom: NIGHT_FROM, nightTo: NIGHT_TO }));
   app.put("/api/settings", auth, async (req) => {
     const b = z.object({ mode: z.enum(["manual", "auto"]).optional(), dailyLimit: z.number().int().min(1).max(50).optional() }).parse(req.body);

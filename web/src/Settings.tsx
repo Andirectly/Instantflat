@@ -8,10 +8,13 @@ const LABEL: Record<PortalStatus["state"], string> = {
 export function Settings() {
   const [info, setInfo] = useState<PortalsInfo | null>(null);
   const [cfg, setCfg] = useState<AppSettings | null>(null);
+  const [ingest, setIngest] = useState<{ endpoint: string; token: string } | null>(null);
+  const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const load = () => api<PortalsInfo>("/api/portals").then(setInfo);
-  useEffect(() => { load().catch(() => {}); api<AppSettings>("/api/settings").then(setCfg).catch(() => {}); }, []);
+  useEffect(() => { load().catch(() => {}); api<AppSettings>("/api/settings").then(setCfg).catch(() => {}); api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {}); }, []);
+  const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});
   const setLimit = (n: number) => api<AppSettings>("/api/settings", { dailyLimit: n }, "PUT").then((r) => setCfg((c) => c && { ...c, dailyLimit: r.dailyLimit })).catch((e: Error) => setErr(e.message));
   if (!info) return <h1>Einstellungen</h1>;
 
@@ -52,7 +55,21 @@ export function Settings() {
             <strong aria-live="polite">{cfg.dailyLimit}</strong>
             <button className="ghost press" aria-label="Mehr" disabled={cfg.dailyLimit >= 50} onClick={() => setLimit(cfg.dailyLimit + 1)}>+</button>
           </div>
-          <p className="dim" style={{ marginBottom: 0 }}>{cfg.dryRun ? "Dry-Run ist aktiv (DRY_RUN=true in der .env): Formulare werden ausgefüllt, aber nie abgeschickt." : "Dry-Run ist aus: Nachrichten werden wirklich gesendet."}</p>
+          <p className="dim" style={{ marginBottom: 0 }}>{cfg.dryRun ? "Dry-Run ist aktiv (DRY_RUN=true): Formulare werden ausgefüllt, aber nie abgeschickt." : "Dry-Run ist aus: Nachrichten werden wirklich gesendet."}</p>
+        </div>
+      )}
+      {ingest && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2>Fredy anbinden</h2>
+          <p className="dim">In Fredy bei jedem Job die Benachrichtigung <strong>HTTP</strong> anlegen und diese zwei Werte eintragen.</p>
+          <div className="rows">
+            {([["Endpoint URL", ingest.endpoint], ["Auth token", ingest.token]] as const).map(([label, value]) => (
+              <div className="row" key={label}>
+                <div style={{ minWidth: 0 }}><small className="dim">{label}</small><div className="mono">{value}</div></div>
+                <button className="ghost press" onClick={() => copy(label, value)}>{copied === label ? "Kopiert" : "Kopieren"}</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div className="card" style={{ marginTop: 16 }}>

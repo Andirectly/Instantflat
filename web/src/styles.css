@@ -126,3 +126,5 @@ input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { padding: 0 16px; }
 .chip[aria-pressed="true"] { background: #fff; color: #000; font-weight: 600; }
+
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; user-select: all; }

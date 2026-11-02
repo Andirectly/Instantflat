@@ -14,6 +14,7 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/server/package.json server/package.json
 COPY --from=build /app/server/dist server/dist
 COPY --from=build /app/web/dist web/dist
+COPY --from=build /app/config config
 WORKDIR /app/server
 EXPOSE 8080
 CMD ["node", "dist/index.js"]

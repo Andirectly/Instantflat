@@ -87,6 +87,13 @@ describe("app", () => {
     expect((await post("gesendet")).statusCode).toBe(400); // in Etappe 2 nicht per API erlaubt
   });
 
+  it("ingest-info nur mit Login", async () => {
+    expect((await app.inject({ url: "/api/ingest-info" })).statusCode).toBe(401);
+    const s = await app.inject({ method: "POST", url: "/api/auth/setup", payload: { password: "correct horse 1" } });
+    const cookies = { [s.cookies[0]!.name]: s.cookies[0]!.value };
+    expect((await app.inject({ url: "/api/ingest-info", cookies })).json()).toEqual({ endpoint: "http://instantflat:8080/api/ingest", token: env.INGEST_TOKEN });
+  });
+
   it("Login ist rate-limitiert", async () => {
     await app.inject({ method: "POST", url: "/api/auth/setup", payload: { password: "correct horse 1" } });
     const codes: number[] = [];

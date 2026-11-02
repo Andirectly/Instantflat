@@ -1,0 +1,82 @@
+# Instantflat für ZimaOS: App Store → "Install Custom App" → Import (oder YAML-Reiter) → diese Datei einfügen.
+# Es werden nur fertige Images verwendet (gebaut von GitHub Actions), nichts wird auf dem Server kompiliert.
+# Vor dem Installieren anpassen: PUBLIC_URL (Adresse deines ZimaOS) und optional die Telegram-Werte.
+name: instantflat
+
+services:
+  instantflat:
+    image: ghcr.io/andirectly/instantflat:latest
+    container_name: instantflat
+    restart: unless-stopped
+    ports:
+      - "8095:8080"
+    environment:
+      PUBLIC_URL: "http://192.168.1.106:8095"   # <- deine ZimaOS-Adresse und der Port oben
+      DRY_RUN: "true"                            # true = nie wirklich senden (Standard!)
+      SESSION_MONITOR: "true"
+      LLM_PROVIDER: "template"
+      TELEGRAM_BOT_TOKEN: ""                     # optional
+      TELEGRAM_CHAT_ID: ""                       # optional
+    volumes:
+      - /DATA/AppData/instantflat/data:/data     # Datenbank, Screenshots, automatisch erzeugte Schlüssel
+    depends_on:
+      - browser
+      - fredy
+    x-casaos:
+      envs:
+        - container: PUBLIC_URL
+          description:
+            en_us: "Address under which you open Instantflat, e.g. http://192.168.1.106:8095"
+        - container: DRY_RUN
+          description:
+            en_us: "true = fill forms but never send (keep true until calibration is verified)"
+      ports:
+        - container: "8080"
+          description:
+            en_us: "Web interface"
+      volumes:
+        - container: /data
+          description:
+            en_us: "Database, screenshots, generated keys"
+
+  browser:
+    image: ghcr.io/andirectly/instantflat-browser:latest
+    container_name: instantflat-browser
+    restart: unless-stopped
+    shm_size: "1gb"
+    mem_limit: 1536m
+    volumes:
+      - /DATA/AppData/instantflat/browser-profile:/profile   # hält deine Portal-Logins
+    expose:
+      - "6080"
+      - "9223"
+
+  fredy:
+    image: ghcr.io/orangecoding/fredy:30.1.2
+    container_name: instantflat-fredy
+    restart: unless-stopped
+    volumes:
+      - /DATA/AppData/instantflat/fredy/conf:/conf
+      - /DATA/AppData/instantflat/fredy/db:/db
+    expose:
+      - "9998"
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: instantflat
+  author: Andirectly
+  category: Utilities
+  index: /
+  port_map: "8095"
+  title:
+    en_us: Instantflat
+    de_de: Instantflat
+  tagline:
+    en_us: Self-hosted workflow for apartment hunting
+    de_de: Wohnungssuche automatisieren (privat gehostet)
+  description:
+    en_us: Fredy finds listings, Instantflat filters them, drafts messages and sends them with limits. Starts in dry-run mode.
+    de_de: Fredy findet Inserate, Instantflat filtert, schreibt Entwürfe und sendet mit Limits. Startet im Dry-Run.
+  icon: https://raw.githubusercontent.com/Andirectly/Instantflat/main/web/public/logo.png

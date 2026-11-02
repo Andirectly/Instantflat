@@ -1,5 +1,18 @@
 # Deployment auf ZimaOS
 
+## Empfohlen: als Custom App (fertige Images, kein Build auf dem Server)
+ZimaOS' "Custom App" nimmt eine Compose-Datei mit **fertigen Images** und baut nichts selbst. Dafür baut GitHub Actions bei jedem Push auf `main` die Images (amd64 und arm64) und legt sie in die GitHub Container Registry. Die zugehörige Datei ist `deploy/zimaos-compose.yml`.
+
+1. **Images prüfen:** Auf GitHub unter *Actions* muss der Lauf "Docker-Images" grün sein. Unter *Packages* erscheinen `instantflat` und `instantflat-browser`. Bei einem öffentlichen Repository müssen die Pakete auf **Public** stehen (Package → Package settings → Change visibility), sonst kann ZimaOS sie ohne Anmeldung nicht laden.
+2. **ZimaOS:** App Store → *Install Custom App* → *Import* oder Reiter *YAML* → Inhalt von `deploy/zimaos-compose.yml` einfügen.
+3. In der Datei `PUBLIC_URL` auf die Adresse deines ZimaOS setzen (zum Beispiel `http://192.168.1.106:8095`, Port wie unter `ports`) und optional Telegram-Token und Chat-ID eintragen. `DRY_RUN` bleibt `"true"`.
+4. *Install* klicken. Danach die Oberfläche öffnen und das Passwort festlegen.
+5. **Schlüssel:** `APP_SECRET` und `INGEST_TOKEN` müssen nicht gesetzt werden. Sie werden beim ersten Start erzeugt und unter `/DATA/AppData/instantflat/data/secrets.json` abgelegt. In Instantflat unter *Einstellungen → Fredy anbinden* stehen Endpoint und Token zum Kopieren.
+6. Weiter mit Abschnitt 5 (Fredy einrichten) und 6 (Portale anmelden). Die kalibrierten Selektoren für ImmoScout24, Immowelt und WG-Gesucht sind im Image enthalten. Eine eigene `portals.json` im Datenordner hat Vorrang.
+7. **Update:** Auf GitHub baut der Push neue Images. In ZimaOS die App neu laden (Pull) bzw. neu installieren, die Daten bleiben in `/DATA/AppData/instantflat/`.
+
+Den Rest dieses Dokuments (Clone, `.env`, `docker compose --build`) brauchst du nur, wenn du den Stack per Terminal statt als Custom App betreiben willst.
+
 Ziel: Compose-Stack aus `fredy`, `instantflat` und `browser` (optional `llm`). Alle Daten unter `/DATA/AppData/instantflat/`.
 
 ## 1. Voraussetzungen
