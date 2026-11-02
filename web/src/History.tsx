@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ago, api, PORTAL_NAMES, type LogEntry, type OutboxEntry } from "./api";
 
-const RESULT: Record<LogEntry["result"], string> = { ok: "Gesendet", dry_run: "Dry-Run", failed: "Fehler" };
+const RESULT: Record<LogEntry["result"], string> = { ok: "Gesendet", dry_run: "Dry-Run", failed: "Fehler", blocked: "Blockiert" };
 const STATUS: Record<OutboxEntry["status"], string> = { queued: "Wartet", sending: "Wird gesendet", dry_done: "Probelauf fertig", failed: "Fehlgeschlagen", unknown: "Unklar" };
 
 export function History() {

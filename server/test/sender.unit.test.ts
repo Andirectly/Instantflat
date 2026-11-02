@@ -46,6 +46,11 @@ describe("sendMessage Vorprüfungen", () => {
     expect(p.keyboard.type).not.toHaveBeenCalled();
     expect((await go(fakePage([f]), def({ host: "portal.test" }))).result).toBe("dry_run"); // Subdomain/Hauptdomain passt
   });
+  it("Captcha und Abmeldung tragen einen maschinenlesbaren Grund (für die Benachrichtigung)", async () => {
+    expect(await go(fakePage([f, "#captcha"])).catch((x) => x)).toMatchObject({ reason: "interaction_required", phase: "before" });
+    expect(await go(fakePage([f, "form#login"])).catch((x) => x)).toMatchObject({ reason: "session_expired" });
+    expect(await go(fakePage([])).catch((x) => x)).toMatchObject({ reason: undefined }); // normales "kein Formular" bleibt ein Fehler
+  });
   it("Öffner: Formular erscheint erst nach Klick", async () => {
     const p = fakePage(["#open"]);
     p.__opened = f;

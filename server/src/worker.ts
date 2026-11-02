@@ -13,7 +13,7 @@ const MAX_ATTEMPTS = 3;
 
 type Row = { id: number; listing_id: number; portal: string; draft_id: number; status: string; attempts: number };
 
-export type TickResult = "idle" | "night" | "sent" | "dry_run" | "failed" | "unknown" | "requeued";
+export type TickResult = "idle" | "night" | "blocked" | "sent" | "dry_run" | "failed" | "unknown" | "requeued";
 
 export class Worker {
   private timer?: NodeJS.Timeout;
@@ -22,7 +22,7 @@ export class Worker {
   constructor(
     private db: Database.Database,
     private defs: PortalDef[],
-    private monitor: Pick<SessionMonitor, "status">,
+    private monitor: Pick<SessionMonitor, "status"> & Partial<Pick<SessionMonitor, "report">>,
     private withPage: WithPage,
     private opts: { dryRun: boolean; shotDir: string; notify: (t: string) => Promise<void>; pace?: Pace; rand?: () => number },
   ) {}
@@ -100,6 +100,13 @@ export class Worker {
       return "dry_run";
     } catch (e) {
       const err = e as Error, phase = e instanceof SendError ? e.phase : "before";
+      // Captcha oder Abmeldung beim Senden: kein Fehlversuch. Die Nachricht bleibt in der Queue, das Portal wird angehalten und du wirst benachrichtigt.
+      if (e instanceof SendError && e.reason) {
+        this.db.prepare("UPDATE outbox SET status = 'queued', attempts = attempts - 1, last_error = ? WHERE id = ?").run(err.message, row.id);
+        log("blocked", err.message);
+        try { await this.monitor.report?.(row.portal, e.reason, l.url ?? undefined); } catch { /* Meldung darf den Worker nicht stoppen */ }
+        return "blocked";
+      }
       log("failed", err.message);
       pause();
       if (phase === "after") {

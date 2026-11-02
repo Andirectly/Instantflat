@@ -3,7 +3,7 @@ import type { PortalDef } from "./types.js";
 
 /** phase "before": vor dem Absenden-Klick gescheitert (sicher wiederholbar). "after": danach, Ergebnis unklar. */
 export class SendError extends Error {
-  constructor(message: string, public phase: "before" | "after", public retry = true) { super(message); }
+  constructor(message: string, public phase: "before" | "after", public retry = true, public reason?: "interaction_required" | "session_expired") { super(message); }
 }
 
 export type Pace = { charMin: number; charMax: number; sentencePause: number; thinkMax: number };
@@ -36,10 +36,10 @@ export async function sendMessage(page: Page, def: PortalDef, message: string, o
     throw new SendError("Kontaktformular nicht gefunden", "before");
   });
   const has = async (s: string) => (await page.locator(s).count()) > 0;
-  if (await has(interaction)) throw new SendError("Portalzustand: interaction_required", "before");
-  if (await has(loggedOut)) throw new SendError("Portalzustand: session_expired", "before");
+  if (await has(interaction)) throw new SendError("Portalzustand: interaction_required", "before", true, "interaction_required");
+  if (await has(loggedOut)) throw new SendError("Portalzustand: session_expired", "before", true, "session_expired");
   if (sel.requireLoggedIn) {
-    await page.waitForSelector(sel.requireLoggedIn, { state: "attached", timeout: 5_000 }).catch(() => { throw new SendError("Portalzustand: session_expired", "before"); });
+    await page.waitForSelector(sel.requireLoggedIn, { state: "attached", timeout: 5_000 }).catch(() => { throw new SendError("Portalzustand: session_expired", "before", true, "session_expired"); });
   }
   if (!(await has(sel.message)) && sel.opener) {
     await page.locator(sel.opener).first().click();

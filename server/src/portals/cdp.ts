@@ -27,3 +27,16 @@ export const cdpWithPage = (cdpUrl: string): WithPage => async (url, fn) => {
     await browser.close().catch(() => {}); // trennt bei CDP nur die Verbindung
   }
 };
+
+/** Öffnet die Adresse in einem neuen Tab des Server-Browsers, bringt ihn nach vorn und lässt ihn offen (z. B. damit du ein Captcha lösen kannst). */
+export const cdpOpenTab = (cdpUrl: string) => async (url: string): Promise<void> => {
+  const browser = await chromium.connectOverCDP(await resolveHost(cdpUrl), { timeout: 15_000 });
+  try {
+    const ctx = browser.contexts()[0] ?? (await browser.newContext());
+    const page = await ctx.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch(() => {});
+    await page.bringToFront().catch(() => {});
+  } finally {
+    await browser.close().catch(() => {}); // trennt nur die Verbindung, der Tab bleibt
+  }
+};

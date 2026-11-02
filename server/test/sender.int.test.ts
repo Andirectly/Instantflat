@@ -58,11 +58,12 @@ describe.skipIf(!process.env.E2E_BROWSER)("Absender gegen echten Browser + Mock-
     expect(await sent()).toHaveLength(1);
   }, 120_000);
 
-  it("abgelaufene Session: Formular fehlt, nichts wird gesendet", async () => {
+  it("abgelaufene Session: Eintrag bleibt in der Queue (kein Fehlversuch), nichts wird gesendet", async () => {
     await ctl("__expire"); await ctl("__reset");
     const { worker, db } = await setup(false);
-    expect(await worker.tick(day)).toBe("requeued");
+    expect(await worker.tick(day)).toBe("blocked");
     expect(await sent()).toEqual([]);
+    expect(db.prepare("SELECT status, attempts FROM outbox").get()).toEqual({ status: "queued", attempts: 0 });
     expect((db.prepare("SELECT last_error FROM outbox").get() as { last_error: string }).last_error).toMatch(/session_expired/);
     await ctl("__login");
   }, 120_000);

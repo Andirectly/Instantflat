@@ -6,7 +6,7 @@ import { openDb } from "./db.js";
 import { buildApp } from "./app.js";
 import { TelegramHub } from "./telegram.js";
 import { SessionMonitor } from "./portals/monitor.js";
-import { cdpWithPage } from "./portals/cdp.js";
+import { cdpOpenTab, cdpWithPage } from "./portals/cdp.js";
 import { mockPortal, REAL_PORTALS } from "./portals/defs.js";
 import { loadPortalDefs } from "./portals/config.js";
 import { Worker } from "./worker.js";
@@ -27,7 +27,7 @@ const defs = loadPortalDefs(cfg.MOCK_PORTAL_URL ? [mockPortal(cfg.MOCK_PORTAL_UR
 const say = async (t: string) => { if (tg.configured()) await tg.sendText(t); };
 const withPage = cdpWithPage(cfg.BROWSER_CDP_URL);
 const monitor = cfg.SESSION_MONITOR
-  ? new SessionMonitor(db, defs, withPage, say, `${cfg.PUBLIC_URL}/browser/vnc.html?autoconnect=1&resize=scale&path=browser/websockify`)
+  ? new SessionMonitor(db, defs, withPage, say, `${cfg.PUBLIC_URL}/browser/vnc.html?autoconnect=1&resize=scale&path=browser/websockify`, Math.random, cdpOpenTab(cfg.BROWSER_CDP_URL))
   : undefined;
 const app = await buildApp(cfg, db, { notify: (id) => tg.notifyDraft(id), monitor, telegram: tg,
   inspector: async (id, o) => {

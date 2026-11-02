@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { getKv, setKv } from "../outbox.js";
 import type { WithPage } from "./cdp.js";
 import { detectState } from "./detect.js";
 import type { PortalDef, PortalState } from "./types.js";
@@ -20,6 +21,7 @@ export class SessionMonitor {
     private notify: (text: string) => Promise<void>,
     private loginUrl: string,
     private rand: () => number = Math.random,
+    private openTab?: (url: string) => Promise<void>,
   ) {}
 
   status(): PortalStatus[] {
@@ -33,8 +35,21 @@ export class SessionMonitor {
     const def = this.defs.find((d) => d.id === id);
     if (!def) throw new Error("Unbekanntes Portal");
     let res: { state: PortalState; detail?: string };
+    // Ist das Portal wegen eines Captchas auf einer bestimmten Seite gesperrt, wird genau diese Seite wieder geprüft
+    // (die Kontoseite zeigt oft kein Captcha). Sobald es weg ist, läuft die Queue von selbst weiter.
+    const prev = this.db.prepare("SELECT state FROM portal_sessions WHERE portal = ?").get(id) as { state: PortalState } | undefined;
+    const blockedUrl = prev?.state === "interaction_required" ? getKv(this.db, `blocked:${id}`) : undefined;
     try {
-      res = await this.withPage(def.url, (page) => detectState(page, def.selectors));
+      if (blockedUrl && def.selectors) {
+        const sel = def.selectors.interaction;
+        res = await this.withPage(blockedUrl, async (page) => {
+          await (page as unknown as { waitForTimeout?: (n: number) => Promise<void> }).waitForTimeout?.(3000);
+          return (await page.locator(sel).count()) > 0 ? { state: "interaction_required" as const } : { state: "ok" as const };
+        });
+        if (res.state === "ok") this.db.prepare("DELETE FROM kv WHERE key = ?").run(`blocked:${id}`);
+      } else {
+        res = await this.withPage(def.url, (page) => detectState(page, def.selectors));
+      }
     } catch (e) {
       res = { state: "error", detail: (e as Error).message.split("\n")[0] };
     }
@@ -64,8 +79,20 @@ export class SessionMonitor {
   private message(def: PortalDef, from: PortalState | undefined, to: PortalState, detail?: string): string | null {
     if (to === "ok") return from ? `✅ ${def.name}: wieder angemeldet.` : null;
     if (to === "session_expired") return `⚠️ ${def.name}: Session abgelaufen. Bitte neu anmelden: ${this.loginUrl}`;
-    if (to === "interaction_required") return `⚠️ ${def.name} verlangt eine Eingabe (Captcha oder Code). Bitte im Browser lösen: ${this.loginUrl}`;
+    if (to === "interaction_required") return `⚠️ ${def.name} verlangt eine Eingabe (Captcha oder Code). ${this.openTab ? "Der Tab ist im Server-Browser schon geöffnet. " : ""}Bitte hier lösen: ${this.loginUrl}\nDanach läuft es von selbst weiter.`;
     return `❌ ${def.name}: Prüfung fehlgeschlagen${detail ? ` (${detail})` : ""}.`;
+  }
+
+  /**
+   * Der Absender ist auf einer Inserat-Seite auf ein Captcha oder eine Abmeldung gestoßen. Das Portal wird angehalten, du bekommst
+   * eine Telegram-Nachricht mit Link, und bei einem Captcha wird die Seite im Server-Browser geöffnet und offen gelassen.
+   */
+  async report(id: string, state: "interaction_required" | "session_expired", url?: string): Promise<void> {
+    const def = this.defs.find((d) => d.id === id);
+    if (!def) return;
+    if (state === "interaction_required" && url) setKv(this.db, `blocked:${id}`, url);
+    await this.record(def, { state });
+    if (state === "interaction_required" && url && this.openTab) await this.openTab(url).catch(() => {});
   }
 
   /** Kalibrierhilfe: zählt, wie oft jeder konfigurierte Selektor auf der aktuellen Seite vorkommt (nur lesend). */
@@ -88,8 +115,10 @@ export class SessionMonitor {
   private schedule(id: string, delay: number) {
     if (this.stopped) return;
     const t = setTimeout(async () => {
-      await this.check(id).catch(() => {});
-      this.schedule(id, (30 + this.rand() * 30) * MIN);
+      const s = await this.check(id).catch(() => null);
+      // Gesperrte Portale öfter prüfen, damit es nach dem Lösen schnell weitergeht.
+      const next = s?.state === "interaction_required" ? 3 + this.rand() * 2 : s?.state === "session_expired" || s?.state === "error" ? 10 + this.rand() * 5 : 30 + this.rand() * 30;
+      this.schedule(id, next * MIN);
     }, delay);
     t.unref();
     this.timers.set(id, t);

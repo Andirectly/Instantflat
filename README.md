@@ -31,7 +31,7 @@ curl -X POST localhost:8080/api/ingest -H "Authorization: Bearer $INGEST_TOKEN" 
 - Container `browser`: Chromium + noVNC + CDP, Profil im Volume. Nur über `/browser` der App (Login nötig) erreichbar, CDP nur im Docker-Netz.
 - `SESSION_MONITOR=true` aktiviert die Prüfung (alle 30–60 Min pro Portal). Bei Statuswechsel gibt es eine Telegram-Meldung mit Link.
 - Selektoren der echten Portale sind noch **nicht kalibriert** (`server/src/portals/defs.ts`); bis dahin zeigt der Monitor "Prüfung fehlgeschlagen" statt eines falschen "Angemeldet".
-- Tests mit echtem Browser: `docker compose -f docker-compose.dev.yml up -d browser mock-portal`, dann `E2E_BROWSER=1 npm test`.
+- Tests mit echtem Browser: `docker compose -f docker-compose.dev.yml up -d browser mock-portal`, dann `E2E_BROWSER=1 npm test -- --no-file-parallelism` (die Echtbrowser-Tests teilen sich das Mock-Portal und dürfen nicht parallel laufen).
   Das Mock-Portal lässt sich per Aufruf steuern: `localhost:4000/__expire`, `/__captcha`, `/__clear`, `/__login`.
 
 ## Senden und Queue (Etappe 5)
@@ -59,3 +59,8 @@ curl -X POST localhost:8080/api/ingest -H "Authorization: Bearer $INGEST_TOKEN" 
 - Für Inserate, die den ersten Filter bestehen, ruft Instantflat Fredys Einzelabruf auf (`POST /api/listings/:id/details`, **ohne** die Massen-Einstellung "provider details", die das Blockrisiko erhöht) und liest Beschreibung, genaue Adresse und Koordinaten.
 - Danach wird noch einmal gefiltert (Ausschlusswörter in der Beschreibung, Umkreis mit Fredys Koordinaten). Der Ansprechpartner wird nur aus Zeilen wie "Agent:", "Ansprechpartner:" oder "Kontakt:" in der Beschreibung gelesen; Firmen und Unklares bekommen kein persönliches "Guten Tag Herr …".
 - Fällt Fredy aus, geht der normale Ablauf ohne Details weiter. In den Freigaben gibt es "Details von Fredy laden" für einzelne Inserate.
+
+## Captcha und Abmeldung beim Senden
+- Stößt der Absender auf einer Inserat-Seite auf ein Captcha oder eine Abmeldung, zählt das **nicht** als Fehlversuch. Die Nachricht bleibt in der Queue, das Portal wird angehalten, und du bekommst eine Telegram-Nachricht mit Link zum Server-Browser.
+- Bei einem Captcha wird die betroffene Seite im Server-Browser **geöffnet und offen gelassen**, damit du sie nur noch lösen musst.
+- Die gesperrte Seite wird alle 3–5 Minuten erneut geprüft. Ist das Captcha weg, geht es **von selbst weiter** (Telegram: "wieder angemeldet"). Es gibt keine Wiederholungs-Nachrichten, solange es gesperrt bleibt.

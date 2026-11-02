@@ -13,6 +13,7 @@ import { Worker } from "../src/worker.js";
 import type { PortalDef } from "../src/portals/types.js";
 
 const send = vi.hoisted(() => vi.fn());
+const report = vi.hoisted(() => vi.fn());
 vi.mock("../src/portals/sender.js", async (orig) => ({ ...(await orig<typeof import("../src/portals/sender.js")>()), sendMessage: send }));
 
 const DAY = new Date("2026-11-02T10:00:00+01:00");
@@ -34,14 +35,14 @@ async function setup(n: { portal: string; count: number }[] = [{ portal: "immosc
   }
   const state = { value: "ok" };
   const notes: string[] = [];
-  const mk = (dry = dryRun) => new Worker(db, defs, { status: () => defs.map((d) => ({ portal: d.id, name: d.name, state: state.value as "ok", detail: null, checkedAt: null, since: null })) },
+  const mk = (dry = dryRun) => new Worker(db, defs, { report, status: () => defs.map((d) => ({ portal: d.id, name: d.name, state: state.value as "ok", detail: null, checkedAt: null, since: null })) },
     (async (_u: string, fn: (p: unknown) => unknown) => fn({})) as never, { dryRun: dry, shotDir: mkdtempSync(join(tmpdir(), "if-")), notify: async (t) => void notes.push(t), rand: () => 0.5 });
   return { db, state, notes, worker: mk(), mk };
 }
 const okSend = () => send.mockResolvedValue({ result: "sent", shots: [Buffer.from("png")] });
 const status = (db: ReturnType<typeof openDb>) => (db.prepare("SELECT id, status FROM outbox ORDER BY id").all() as { id: number; status: string }[]).map((r) => r.status);
 
-beforeEach(() => { send.mockReset(); okSend(); });
+beforeEach(() => { send.mockReset(); report.mockReset(); okSend(); });
 
 describe("Outbox", () => {
   it("doppelte Freigabe erzeugt nur einen Eintrag", async () => {
@@ -159,6 +160,25 @@ describe("Worker", () => {
     send.mockRejectedValue(new SendError("Externe Seite", "before", false));
     expect(await worker.tick(DAY)).toBe("failed");
     expect(status(db)).toEqual(["failed"]);
+  });
+
+  it("Captcha beim Senden: kein Fehlversuch, Eintrag bleibt in der Queue, Portal wird gemeldet", async () => {
+    const { db, worker } = await setup();
+    send.mockRejectedValue(new SendError("Portalzustand: interaction_required", "before", true, "interaction_required"));
+    expect(await worker.tick(DAY)).toBe("blocked");
+    expect(db.prepare("SELECT status, attempts, last_error AS e FROM outbox").get()).toEqual({ status: "queued", attempts: 0, e: "Portalzustand: interaction_required" });
+    expect(report).toHaveBeenCalledWith("immoscout24", "interaction_required", "http://x/expose/1");
+    expect(db.prepare("SELECT result FROM send_log").get()).toEqual({ result: "blocked" });
+    // beliebig oft blockiert, nie "failed"
+    for (let i = 1; i <= 4; i++) expect(await worker.tick(at(i * 10))).toBe("blocked");
+    expect(status(db)).toEqual(["queued"]);
+  });
+
+  it("Abmeldung beim Senden wird genauso gemeldet", async () => {
+    const { worker } = await setup();
+    send.mockRejectedValue(new SendError("Portalzustand: session_expired", "before", true, "session_expired"));
+    expect(await worker.tick(DAY)).toBe("blocked");
+    expect(report).toHaveBeenCalledWith("immoscout24", "session_expired", "http://x/expose/1");
   });
 
   it("Screenshots werden gespeichert", async () => {

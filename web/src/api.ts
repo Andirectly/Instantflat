@@ -32,6 +32,6 @@ export type Draft = { id: number; listingId: number; version: number; body: stri
 
 export type PortalStatus = { portal: string; name: string; state: "ok" | "session_expired" | "interaction_required" | "error" | "unknown"; detail: string | null; checkedAt: string | null; since: string | null };
 export type AppSettings = { mode: "manual" | "auto"; dailyLimit: number; dryRun: boolean; nightFrom: number; nightTo: number };
-export type LogEntry = { id: number; portal: string; dryRun: number; result: "ok" | "dry_run" | "failed"; detail: string | null; shots: string[]; durationMs: number | null; at: string; title: string };
+export type LogEntry = { id: number; portal: string; dryRun: number; result: "ok" | "dry_run" | "failed" | "blocked"; detail: string | null; shots: string[]; durationMs: number | null; at: string; title: string };
 export type OutboxEntry = { id: number; portal: string; status: "queued" | "sending" | "dry_done" | "failed" | "unknown"; attempts: number; lastError: string | null; queuedAt: string; title: string };
 export type PortalsInfo ={ monitoring: boolean; loginUrl: string; portals: PortalStatus[] };
