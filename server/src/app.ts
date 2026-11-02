@@ -16,6 +16,7 @@ import proxy from "@fastify/http-proxy";
 import type { SessionMonitor } from "./portals/monitor.js";
 import { getDailyLimit, getMode, NIGHT_FROM, NIGHT_TO, setDailyLimit, setMode } from "./outbox.js";
 import { filtersSchema } from "./filter.js";
+import { createUpdater, type Updater } from "./update.js";
 import { cachedGeocode, nominatimGeocoder, type Geocoder } from "./geo.js";
 import { autoSendable, geoCheck, getFilters, listListings, overview, setFilters, STATES, transition, TransitionError, type State } from "./listings.js";
 
@@ -25,7 +26,7 @@ const pwBody = z.object({ password: z.string().min(10, "Mind. 10 Zeichen").max(2
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder } = {}): Promise<FastifyInstance> {
+export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", bodyLimit: 2 * 1024 * 1024 });
   app.setErrorHandler((e, _req, reply) => {
     if (e instanceof z.ZodError) return reply.code(400).send({ error: "Ungültige Eingabe", issues: e.issues });
@@ -167,6 +168,14 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
 
   // ---- Einstellungen, Verlauf, Outbox ----
   // Zugangsdaten für Fredys HTTP-Adapter (nur mit Login sichtbar).
+  const updater = opts.updater ?? createUpdater(cfg);
+  app.get("/api/version", auth, async () => updater.version());
+  app.post("/api/update", auth, async (_req, reply) => {
+    if (!updater.canUpdate) return reply.code(409).send({ error: "Update nicht eingerichtet (Watchtower fehlt in der Compose-Datei)" });
+    updater.trigger();
+    return { started: true };
+  });
+
   app.get("/api/ingest-info", auth, async () => ({ endpoint: "http://instantflat:8080/api/ingest", token: cfg.INGEST_TOKEN }));
 
   app.get("/api/settings", auth, async () => ({ mode: getMode(db), dailyLimit: getDailyLimit(db), dryRun: cfg.DRY_RUN, nightFrom: NIGHT_FROM, nightTo: NIGHT_TO }));

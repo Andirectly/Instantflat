@@ -5,15 +5,24 @@ const LABEL: Record<PortalStatus["state"], string> = {
   ok: "Angemeldet", session_expired: "Abgemeldet", interaction_required: "Eingabe nötig", error: "Prüfung fehlgeschlagen", unknown: "Noch nicht geprüft",
 };
 
+type Version = { current: string; latest: string | null; updateAvailable: boolean; canUpdate: boolean };
+
 export function Settings() {
   const [info, setInfo] = useState<PortalsInfo | null>(null);
   const [cfg, setCfg] = useState<AppSettings | null>(null);
   const [ingest, setIngest] = useState<{ endpoint: string; token: string } | null>(null);
+  const [ver, setVer] = useState<Version | null>(null);
+  const [upd, setUpd] = useState("");
   const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const load = () => api<PortalsInfo>("/api/portals").then(setInfo);
-  useEffect(() => { load().catch(() => {}); api<AppSettings>("/api/settings").then(setCfg).catch(() => {}); api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {}); }, []);
+  useEffect(() => {
+    load().catch(() => {});
+    api<AppSettings>("/api/settings").then(setCfg).catch(() => {});
+    api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {});
+    api<Version>("/api/version").then(setVer).catch(() => {});
+  }, []);
   const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});
   const setLimit = (n: number) => api<AppSettings>("/api/settings", { dailyLimit: n }, "PUT").then((r) => setCfg((c) => c && { ...c, dailyLimit: r.dailyLimit })).catch((e: Error) => setErr(e.message));
   if (!info) return <h1>Einstellungen</h1>;
@@ -22,6 +31,20 @@ export function Settings() {
     setBusy(id); setErr("");
     try { await api(`/api/portals/${id}/check`, {}); await load(); } catch (e) { setErr((e as Error).message); }
     setBusy("");
+  }
+
+  async function update() {
+    if (!confirm("Instantflat jetzt aktualisieren? Die App ist dabei etwa eine Minute nicht erreichbar. Deine Daten bleiben erhalten.")) return;
+    setUpd("Aktualisiere … die Seite lädt gleich neu.");
+    try { await api("/api/update", {}); } catch (e) { return setUpd((e as Error).message); }
+    // Warten, bis die App kurz weg und wieder da ist, dann neu laden.
+    let down = false;
+    for (let i = 0; i < 90; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const ok = await fetch("/api/health").then((r) => r.ok).catch(() => false);
+      if (!ok) down = true; else if (down) return location.reload();
+    }
+    setUpd("Das hat länger gedauert als erwartet. Lade die Seite später neu.");
   }
 
   return (
@@ -70,6 +93,17 @@ export function Settings() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {ver && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2>Version</h2>
+          <p className="dim">Installiert: <span className="mono">{ver.current}</span>{ver.latest && <> · Neueste: <span className="mono">{ver.latest}</span></>}</p>
+          {ver.updateAvailable ? <p>Es gibt eine neuere Version.</p> : <p className="dim">{ver.latest ? "Du hast die neueste Version." : "Die neueste Version konnte nicht ermittelt werden."}</p>}
+          {ver.canUpdate
+            ? <button className="cta press slim" disabled={!ver.updateAvailable || !!upd} onClick={update}>Jetzt aktualisieren</button>
+            : <p className="dim">Das automatische Update ist nicht eingerichtet (Watchtower fehlt in der Compose-Datei).</p>}
+          {upd && <p role="status" className="dim">{upd}</p>}
         </div>
       )}
       <div className="card" style={{ marginTop: 16 }}>

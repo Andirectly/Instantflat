@@ -17,11 +17,15 @@ services:
       LLM_PROVIDER: "template"
       TELEGRAM_BOT_TOKEN: ""                     # optional
       TELEGRAM_CHAT_ID: ""                       # optional
+      UPDATE_URL: "http://watchtower:8080"       # für den Update-Knopf in den Einstellungen
+      UPDATE_TOKEN: "instantflat-update-token"   # muss mit WATCHTOWER_HTTP_API_TOKEN unten übereinstimmen
     volumes:
       - /DATA/AppData/instantflat/data:/data     # Datenbank, Screenshots, automatisch erzeugte Schlüssel
     depends_on:
       - browser
       - fredy
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"   # darf per Update-Knopf aktualisiert werden
     networks:
       - internal
     x-casaos:
@@ -52,6 +56,8 @@ services:
     expose:
       - "6080"
       - "9223"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     networks:
       - internal
 
@@ -64,6 +70,24 @@ services:
       - /DATA/AppData/instantflat/fredy/db:/db
     ports:
       - "9998:9998"                              # Fredy-Oberfläche im Heimnetz; Passwort sofort ändern (Standard admin/admin)
+    networks:
+      - internal
+
+  # Spielt neue Versionen ein, aber nur wenn du in Instantflat auf "Jetzt aktualisieren" klickst (kein automatisches Polling).
+  # Aktualisiert nur Container mit dem Label oben (instantflat, browser), Fredy bleibt auf seiner festen Version.
+  # Der Update-Zugang ist nur im internen Netz erreichbar und durch das Token geschützt.
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:latest
+    container_name: instantflat-updater
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_TOKEN: "instantflat-update-token"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
     networks:
       - internal
 

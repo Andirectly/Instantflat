@@ -8,7 +8,8 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim
-ENV NODE_ENV=production DATA_DIR=/data
+ARG BUILD_SHA=dev
+ENV NODE_ENV=production DATA_DIR=/data BUILD_SHA=$BUILD_SHA
 WORKDIR /app
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/server/package.json server/package.json

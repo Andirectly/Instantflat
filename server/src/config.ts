@@ -19,6 +19,11 @@ const schema = z.object({
   BROWSER_VNC_URL: z.string().url().default("http://browser:6080"),
   PORTALS_CONFIG: z.string().optional(), // Pfad zu portals.json (Standard: DATA_DIR/portals.json)
   MOCK_PORTAL_URL: z.string().url().optional(),
+  // Selbst-Update (Watchtower), BUILD_SHA setzt das Docker-Image
+  BUILD_SHA: z.string().default("dev"),
+  UPDATE_URL: z.string().url().optional(),
+  UPDATE_TOKEN: z.string().optional(),
+  UPDATE_REPO: z.string().default("Andirectly/Instantflat"),
   ANTHROPIC_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
