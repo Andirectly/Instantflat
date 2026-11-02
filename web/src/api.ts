@@ -6,7 +6,7 @@ export type Listing = {
 export type Overview = { today: number; waiting: number; filtered: number; total: number; portals: { portal: string; count: number }[]; recent: Listing[] };
 export type Filters = { maxRent: number | null; minSize: number | null; minRooms: number | null; districts: string[]; excludeWords: string[]; center: { address: string; lat: number; lon: number; label: string } | null; radiusKm: number | null };
 
-export const PORTAL_NAMES: Record<string, string> = { immoscout24: "ImmoScout24", kleinanzeigen: "Kleinanzeigen", immowelt: "Immowelt", wggesucht: "WG-Gesucht" };
+export const PORTAL_NAMES: Record<string, string> = { immoscout24: "ImmoScout24", kleinanzeigen: "Kleinanzeigen", immowelt: "Immowelt", wggesucht: "WG-Gesucht", test: "Test" };
 
 export async function api<T>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST"): Promise<T> {
   const r = await fetch(path, method === "GET" ? undefined : { method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });

@@ -27,7 +27,7 @@ const withPage = cdpWithPage(cfg.BROWSER_CDP_URL);
 const monitor = cfg.SESSION_MONITOR
   ? new SessionMonitor(db, defs, withPage, say, `${cfg.PUBLIC_URL}/browser/vnc.html?autoconnect=1&resize=scale&path=browser/websockify`)
   : undefined;
-const app = await buildApp(cfg, db, { notify: tg ? (id) => tg.notifyDraft(id) : undefined, monitor });
+const app = await buildApp(cfg, db, { notify: tg ? (id) => tg.notifyDraft(id) : undefined, monitor, telegram: tg ?? undefined });
 monitor?.start();
 // Der Worker sendet nur, wenn die Session-Überwachung läuft (er braucht den Portalstatus).
 const worker = monitor ? new Worker(db, defs, monitor, withPage, { dryRun: cfg.DRY_RUN, shotDir: join(cfg.DATA_DIR, "screenshots"), notify: say }) : undefined;

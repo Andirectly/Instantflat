@@ -13,6 +13,9 @@ export function Settings() {
   const [ingest, setIngest] = useState<{ endpoint: string; token: string } | null>(null);
   const [ver, setVer] = useState<Version | null>(null);
   const [upd, setUpd] = useState("");
+  const [tg, setTg] = useState<boolean | null>(null);
+  const [test, setTest] = useState("");
+  const [testBusy, setTestBusy] = useState(false);
   const [copied, setCopied] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -22,6 +25,7 @@ export function Settings() {
     api<AppSettings>("/api/settings").then(setCfg).catch(() => {});
     api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {});
     api<Version>("/api/version").then(setVer).catch(() => {});
+    api<{ configured: boolean }>("/api/telegram").then((r) => setTg(r.configured)).catch(() => {});
   }, []);
   const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});
   const setLimit = (n: number) => api<AppSettings>("/api/settings", { dailyLimit: n }, "PUT").then((r) => setCfg((c) => c && { ...c, dailyLimit: r.dailyLimit })).catch((e: Error) => setErr(e.message));
@@ -31,6 +35,23 @@ export function Settings() {
     setBusy(id); setErr("");
     try { await api(`/api/portals/${id}/check`, {}); await load(); } catch (e) { setErr((e as Error).message); }
     setBusy("");
+  }
+
+  async function runTest(kind: "telegram" | "listing") {
+    setTestBusy(true);
+    setTest("");
+    try {
+      if (kind === "telegram") {
+        await api("/api/test/telegram", {});
+        setTest("Testnachricht gesendet. Sie sollte jetzt in Telegram ankommen.");
+      } else {
+        const r = await api<{ state: string; draft: boolean; telegram: boolean; activeProfile: boolean }>("/api/test/listing", {});
+        setTest(!r.activeProfile
+          ? "Das Test-Inserat ist da, aber ohne aktives Profil gibt es keinen Entwurf. Lege unter Profil deine Angaben an."
+          : `Test-Inserat angelegt${r.draft ? ", Entwurf erstellt" : ""}${r.telegram ? " und an Telegram geschickt (Karte mit Senden/Verwerfen/Bearbeiten)." : tg ? "." : ". Telegram ist nicht eingerichtet, du siehst es unter Freigaben."} Du kannst es dort verwerfen.`);
+      }
+    } catch (e) { setTest((e as Error).message); }
+    setTestBusy(false);
   }
 
   async function update() {
@@ -95,6 +116,15 @@ export function Settings() {
           </div>
         </div>
       )}
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2>Testlauf</h2>
+        <p className="dim">Telegram: <strong>{tg === null ? "…" : tg ? "eingerichtet" : "nicht eingerichtet"}</strong>. Der Testlauf schickt nichts an ein Portal.</p>
+        <div className="actions">
+          <button className="ghost press" disabled={testBusy || tg === false} onClick={() => runTest("telegram")}>Telegram-Testnachricht</button>
+          <button className="ghost press" disabled={testBusy} onClick={() => runTest("listing")}>Test-Inserat durchspielen</button>
+        </div>
+        {test && <p role="status" className="dim" style={{ marginBottom: 0 }}>{test}</p>}
+      </div>
       {ver && (
         <div className="card" style={{ marginTop: 16 }}>
           <h2>Version</h2>

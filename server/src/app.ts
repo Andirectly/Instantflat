@@ -26,7 +26,7 @@ const pwBody = z.object({ password: z.string().min(10, "Mind. 10 Zeichen").max(2
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater } = {}): Promise<FastifyInstance> {
+export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: { sendText(text: string): Promise<void> } } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", bodyLimit: 2 * 1024 * 1024 });
   app.setErrorHandler((e, _req, reply) => {
     if (e instanceof z.ZodError) return reply.code(400).send({ error: "Ungültige Eingabe", issues: e.issues });
@@ -72,6 +72,7 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
 
   app.get("/api/health", async () => ({ ok: true, dryRun: cfg.DRY_RUN }));
 
+
   app.get("/api/auth/status", async (req) => ({ setup: !hasUser(), authed: isAuthed(req) }));
 
   const strict = { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } };
@@ -104,6 +105,34 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   const auth = { preHandler: async (req: FastifyRequest, reply: import("fastify").FastifyReply) => {
     if (!isAuthed(req)) return reply.code(401).send({ error: "Nicht angemeldet" });
   } };
+
+// ---- Testlauf: prüft Telegram und den ganzen Weg Inserat → Filter → Entwurf → Telegram-Karte ----
+  app.get("/api/telegram", auth, async () => ({ configured: !!opts.telegram }));
+  app.post("/api/test/telegram", auth, async (_req, reply) => {
+    if (!opts.telegram) return reply.code(409).send({ error: "Telegram ist nicht eingerichtet (TELEGRAM_BOT_TOKEN und TELEGRAM_CHAT_ID fehlen)" });
+    try {
+      await opts.telegram.sendText("✅ Testnachricht von Instantflat. Telegram ist verbunden.");
+      return { ok: true };
+    } catch (e) {
+      return reply.code(502).send({ error: `Telegram antwortet mit einem Fehler: ${(e as Error).message}` });
+    }
+  });
+  // Das Test-Inserat umgeht die Filter (es soll den Rest der Kette prüfen), liegt im Umkreis und kann verworfen werden.
+  app.post("/api/test/listing", auth, async () => {
+    const flt = getFilters(db);
+    const address = flt.center?.address ?? "Köln";
+    const r = db.prepare(
+      `INSERT INTO listings (portal, external_id, title, address, price, size, rent, size_m2, rooms, url, description, raw)
+       VALUES ('test', ?, 'TESTWOHNUNG: Helle 2-Zimmer-Wohnung mit Balkon', ?, '650 €', '55 m²', 650, 55, 2, 'https://example.com/testwohnung',
+               'Dies ist ein Test von Instantflat. Ruhige Lage, Balkon.', '{"test":true}')`,
+    ).run(`test-${Date.now()}`, address);
+    const id = Number(r.lastInsertRowid);
+    transition(db, id, "gefiltert");
+    await processNew([id]);
+    const l = db.prepare("SELECT state FROM listings WHERE id = ?").get(id) as { state: string };
+    const draft = latestDraft(db, id);
+    return { id, state: l.state, draft: !!draft, telegram: !!opts.telegram && !!draft, activeProfile: !!activeProfile(db) };
+  });
 
   app.get("/api/overview", auth, async () => ({ ...overview(db), recent: listListings(db, { states: ["gefiltert", "entwurf"], limit: 5 }).items }));
 
