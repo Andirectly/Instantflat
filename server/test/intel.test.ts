@@ -114,13 +114,16 @@ describe("Telegram", () => {
     const db = seeded();
     const sent: { text: string; other?: Record<string, unknown> }[] = [];
     const answers: string[] = [];
+    const alerts: (boolean | undefined)[] = [];
+    const edits: { id: number; text: string; other?: Record<string, unknown> }[] = [];
     let mid = 100;
     const api: TgApi = {
       sendMessage: async (_c, text, other) => (sent.push({ text, other }), { message_id: ++mid }),
       sendPhoto: async () => ({}),
-      answerCallbackQuery: async (_id, t) => void answers.push(t ?? ""),
+      answerCallbackQuery: async (_id, t, alert) => void (answers.push(t ?? ""), alerts.push(alert)),
+      editMessageText: async (_c, id, text, other) => void edits.push({ id, text, other }),
     };
-    return { db, sent, answers, svc: new TelegramService(db, CHAT, api, "http://x") };
+    return { db, sent, answers, alerts, edits, svc: new TelegramService(db, CHAT, api, "http://x") };
   }
 
   it("Karte enthält Entwurf mit Senden/Verwerfen/Bearbeiten", async () => {
@@ -150,6 +153,27 @@ describe("Telegram", () => {
     await svc.onCallback(CHAT, `a:1:${d2.id}`, "cb3");
     expect(answers.at(-1)).toMatch(/nicht erlaubt/);
     expect(db.prepare("SELECT count(*) c FROM listing_events WHERE to_state = 'freigegeben'").get()).toEqual({ c: 1 });
+  });
+
+  it("Senden/Verwerfen aktualisieren die Karte (ohne Knöpfe); Fehler als sichtbarer Hinweis", async () => {
+    const { db, answers, alerts, edits, svc } = setup();
+    const d1 = await createDraft(db, templateGenerator, 1);
+    await svc.onCallback(CHAT, `a:1:${d1.id}`, "cb1", 555);
+    expect(edits.at(-1)).toMatchObject({ id: 555, other: { reply_markup: { inline_keyboard: [] } } });
+    expect(edits.at(-1)!.text).toMatch(/Guten Tag[\s\S]*✅ Freigegeben/);
+    expect(alerts.at(-1)).toBe(false);
+    await svc.onCallback(CHAT, `x:1:${d1.id}`, "cb2", 555); // schon freigegeben
+    expect(alerts.at(-1)).toBe(true);
+    expect(edits.at(-1)!.text).toMatch(/⚠️ Nicht mehr möglich/);
+    expect(answers.at(-1)).toMatch(/nicht erlaubt/);
+  });
+
+  it("Verwerfen aktualisiert die Karte", async () => {
+    const { db, edits, svc } = setup();
+    const d = await createDraft(db, templateGenerator, 1);
+    await svc.onCallback(CHAT, `x:1:${d.id}`, "cb", 7);
+    expect(edits.at(-1)!.text).toMatch(/🗑 Verworfen/);
+    expect(db.prepare("SELECT state FROM listings").get()).toEqual({ state: "verworfen" });
   });
 
   it("Bearbeiten: Antwort erzeugt neue Version und neue Karte", async () => {

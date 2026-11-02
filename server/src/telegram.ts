@@ -6,7 +6,8 @@ import { transition, TransitionError } from "./listings.js";
 export type TgApi = {
   sendMessage(chatId: string, text: string, other?: Record<string, unknown>): Promise<{ message_id: number }>;
   sendPhoto(chatId: string, photo: string, other?: Record<string, unknown>): Promise<unknown>;
-  answerCallbackQuery(id: string, text?: string): Promise<unknown>;
+  answerCallbackQuery(id: string, text?: string, alert?: boolean): Promise<unknown>;
+  editMessageText(chatId: string, messageId: number, text: string, other?: Record<string, unknown>): Promise<unknown>;
 };
 
 type L = { id: number; title: string; address: string | null; price: string | null; size: string | null; url: string | null; imageUrl: string | null; state: string };
@@ -35,19 +36,29 @@ export class TelegramService {
     await this.api.sendMessage(this.chatId, d.body, { reply_markup: kb });
   }
 
-  async onCallback(fromChat: string, data: string, callbackId: string): Promise<void> {
+  async onCallback(fromChat: string, data: string, callbackId: string, messageId?: number): Promise<void> {
     if (fromChat !== this.chatId) return; // fremde Chats werden ignoriert
     const [kind, lid, did] = data.split(":");
     const listingId = Number(lid), draftId = Number(did);
-    const answer = (t: string) => this.api.answerCallbackQuery(callbackId, t);
+    const answer = (t: string, alert = false) => this.api.answerCallbackQuery(callbackId, t, alert);
+    // Karte aktualisieren: Knöpfe entfernen und das Ergebnis anhängen, damit der Stand ohne Hinweisfenster sichtbar bleibt.
+    const finish = async (status: string) => {
+      if (messageId === undefined) return;
+      const body = (this.db.prepare("SELECT body FROM drafts WHERE id = ?").get(draftId) as { body: string } | undefined)?.body ?? "";
+      await this.api.editMessageText(this.chatId, messageId, `${body}
+
+${status}`.trim(), { reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    };
     try {
       if (kind === "a") {
         approveDraft(this.db, listingId, draftId);
+        await finish("✅ Freigegeben – wartet in der Queue");
         return void (await answer("Freigegeben. Wartet in der Queue."));
       }
       if (kind === "x") {
         if (latestDraft(this.db, listingId)?.id !== draftId) throw new DraftError("Entwurf wurde inzwischen geändert");
         transition(this.db, listingId, "verworfen", "Per Telegram verworfen");
+        await finish("🗑 Verworfen");
         return void (await answer("Verworfen."));
       }
       if (kind === "e") {
@@ -58,7 +69,10 @@ export class TelegramService {
       await answer("Unbekannte Aktion.");
     } catch (e) {
       // Doppelklick oder veraltete Karte: nichts ändern, nur melden.
-      if (e instanceof DraftError || e instanceof TransitionError) return void (await answer(e.message));
+      if (e instanceof DraftError || e instanceof TransitionError) {
+        await finish(`⚠️ Nicht mehr möglich: ${e.message}`);
+        return void (await answer(e.message, true));
+      }
       throw e;
     }
   }
@@ -76,8 +90,15 @@ export class TelegramService {
 
 export function startTelegram(db: Database.Database, token: string, chatId: string, publicUrl: string, log: (m: string) => void): TelegramService {
   const bot = new Bot(token);
-  const svc = new TelegramService(db, chatId, bot.api as unknown as TgApi, publicUrl);
-  bot.on("callback_query:data", (ctx) => svc.onCallback(String(ctx.chat?.id ?? ctx.from.id), ctx.callbackQuery.data, ctx.callbackQuery.id));
+  // Eigener Adapter: grammY erwartet bei answerCallbackQuery ein Optionsobjekt, keinen Text.
+  const api: TgApi = {
+    sendMessage: (c, t, o) => bot.api.sendMessage(c, t, o as never),
+    sendPhoto: (c, p, o) => bot.api.sendPhoto(c, p, o as never),
+    answerCallbackQuery: (id, text, alert) => bot.api.answerCallbackQuery(id, { text, show_alert: alert }),
+    editMessageText: (c, m, t, o) => bot.api.editMessageText(c, m, t, o as never),
+  };
+  const svc = new TelegramService(db, chatId, api, publicUrl);
+  bot.on("callback_query:data", (ctx) => svc.onCallback(String(ctx.chat?.id ?? ctx.from.id), ctx.callbackQuery.data, ctx.callbackQuery.id, ctx.callbackQuery.message?.message_id));
   bot.on("message:text", (ctx) => svc.onReply(String(ctx.chat.id), ctx.message.reply_to_message?.message_id, ctx.message.text));
   bot.catch((e) => log(`Telegram-Fehler: ${e.message}`));
   void bot.start({ drop_pending_updates: true, onStart: () => log("Telegram-Bot läuft (Long Polling)") }).catch((e) => log(`Telegram-Start fehlgeschlagen: ${(e as Error).message}`));
