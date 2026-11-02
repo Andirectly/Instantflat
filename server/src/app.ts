@@ -16,6 +16,7 @@ import proxy from "@fastify/http-proxy";
 import type { SessionMonitor } from "./portals/monitor.js";
 import { getDailyLimit, getMode, NIGHT_FROM, NIGHT_TO, setDailyLimit, setMode } from "./outbox.js";
 import { filtersSchema } from "./filter.js";
+import type { TelegramHubApi } from "./telegram.js";
 import { createUpdater, type Updater } from "./update.js";
 import { cachedGeocode, nominatimGeocoder, type Geocoder } from "./geo.js";
 import { autoSendable, geoCheck, getFilters, listListings, overview, setFilters, STATES, transition, TransitionError, type State } from "./listings.js";
@@ -26,7 +27,7 @@ const pwBody = z.object({ password: z.string().min(10, "Mind. 10 Zeichen").max(2
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: { sendText(text: string): Promise<void> } } = {}): Promise<FastifyInstance> {
+export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: TelegramHubApi } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", bodyLimit: 2 * 1024 * 1024 });
   app.setErrorHandler((e, _req, reply) => {
     if (e instanceof z.ZodError) return reply.code(400).send({ error: "Ungültige Eingabe", issues: e.issues });
@@ -107,9 +108,19 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   } };
 
 // ---- Testlauf: prüft Telegram und den ganzen Weg Inserat → Filter → Entwurf → Telegram-Karte ----
-  app.get("/api/telegram", auth, async () => ({ configured: !!opts.telegram }));
+  app.get("/api/telegram", auth, async () => ({ configured: !!opts.telegram?.configured(), chatId: opts.telegram?.chatId() ?? null, source: opts.telegram?.source() ?? null }));
+  app.put("/api/telegram", auth, async (req, reply) => {
+    if (!opts.telegram) return reply.code(409).send({ error: "Telegram ist in dieser Installation nicht verfügbar" });
+    const b = z.object({ token: z.string().trim().max(200).optional(), chatId: z.string().trim().min(1).max(40) }).parse(req.body);
+    try { return await opts.telegram.apply(b.token || undefined, b.chatId); } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  });
+  app.post("/api/telegram/find-chat", auth, async (req, reply) => {
+    if (!opts.telegram) return reply.code(409).send({ error: "Telegram ist in dieser Installation nicht verfügbar" });
+    const b = z.object({ token: z.string().trim().max(200).optional() }).parse(req.body ?? {});
+    try { return { chats: await opts.telegram.findChats(b.token || undefined) }; } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  });
   app.post("/api/test/telegram", auth, async (_req, reply) => {
-    if (!opts.telegram) return reply.code(409).send({ error: "Telegram ist nicht eingerichtet (TELEGRAM_BOT_TOKEN und TELEGRAM_CHAT_ID fehlen)" });
+    if (!opts.telegram?.configured()) return reply.code(409).send({ error: "Telegram ist nicht eingerichtet. Trage unten Token und Chat-ID ein." });
     try {
       await opts.telegram.sendText("✅ Testnachricht von Instantflat. Telegram ist verbunden.");
       return { ok: true };
@@ -131,7 +142,7 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
     await processNew([id]);
     const l = db.prepare("SELECT state FROM listings WHERE id = ?").get(id) as { state: string };
     const draft = latestDraft(db, id);
-    return { id, state: l.state, draft: !!draft, telegram: !!opts.telegram && !!draft, activeProfile: !!activeProfile(db) };
+    return { id, state: l.state, draft: !!draft, telegram: !!opts.telegram?.configured() && !!draft, activeProfile: !!activeProfile(db) };
   });
 
   app.get("/api/overview", auth, async () => ({ ...overview(db), recent: listListings(db, { states: ["gefiltert", "entwurf"], limit: 5 }).items }));

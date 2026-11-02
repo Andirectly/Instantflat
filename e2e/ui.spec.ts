@@ -44,6 +44,9 @@ test("Setup, Übersicht, Freigabe, Filter – Desktop und Handy", async ({ page,
 
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByText("Die Session-Überwachung ist aus.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+  await expect(page.getByText("Noch nicht eingerichtet.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Speichern" })).toBeDisabled(); // ohne Token und Chat-ID
   await page.screenshot({ path: "e2e/shots/settings-desktop.png", fullPage: true });
 
   await page.getByRole("link", { name: "Freigaben" }).click();

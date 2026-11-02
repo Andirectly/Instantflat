@@ -4,8 +4,8 @@ export type Mode = "manual" | "auto";
 export const NIGHT_FROM = 22, NIGHT_TO = 7; // Europe/Berlin, Nachtruhe 22-7 Uhr
 export const DEFAULT_DAILY_LIMIT = 7; // pro Plattform
 
-const getKv = (db: Database.Database, k: string) => (db.prepare("SELECT value FROM kv WHERE key = ?").get(k) as { value: string } | undefined)?.value;
-const setKv = (db: Database.Database, k: string, v: string) => void db.prepare("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
+export const getKv = (db: Database.Database, k: string) => (db.prepare("SELECT value FROM kv WHERE key = ?").get(k) as { value: string } | undefined)?.value;
+export const setKv = (db: Database.Database, k: string, v: string) => void db.prepare("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(k, v);
 
 export const getMode = (db: Database.Database): Mode => (getKv(db, "mode") === "auto" ? "auto" : "manual");
 export const setMode = (db: Database.Database, m: Mode) => setKv(db, "mode", m);

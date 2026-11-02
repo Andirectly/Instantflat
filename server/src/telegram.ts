@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import type Database from "better-sqlite3";
 import { approveDraft, DraftError, latestDraft, saveDraft } from "./draft.js";
 import { transition, TransitionError } from "./listings.js";
+import { getKv, setKv } from "./outbox.js";
 
 export type TgApi = {
   sendMessage(chatId: string, text: string, other?: Record<string, unknown>): Promise<{ message_id: number }>;
@@ -88,7 +89,7 @@ ${status}`.trim(), { reply_markup: { inline_keyboard: [] } }).catch(() => {});
   }
 }
 
-export function startTelegram(db: Database.Database, token: string, chatId: string, publicUrl: string, log: (m: string) => void): TelegramService {
+export function startTelegram(db: Database.Database, token: string, chatId: string, publicUrl: string, log: (m: string) => void): { svc: TelegramService; stop: () => Promise<void> } {
   const bot = new Bot(token);
   // Eigener Adapter: grammY erwartet bei answerCallbackQuery ein Optionsobjekt, keinen Text.
   const api: TgApi = {
@@ -102,5 +103,101 @@ export function startTelegram(db: Database.Database, token: string, chatId: stri
   bot.on("message:text", (ctx) => svc.onReply(String(ctx.chat.id), ctx.message.reply_to_message?.message_id, ctx.message.text));
   bot.catch((e) => log(`Telegram-Fehler: ${e.message}`));
   void bot.start({ drop_pending_updates: true, onStart: () => log("Telegram-Bot läuft (Long Polling)") }).catch((e) => log(`Telegram-Start fehlgeschlagen: ${(e as Error).message}`));
-  return svc;
+  return { svc, stop: async () => { await bot.stop().catch(() => {}); } };
+}
+
+export type TelegramStarter = typeof startTelegram;
+
+export type TelegramHubApi = {
+  configured(): boolean;
+  chatId(): string | null;
+  source(): "app" | "env" | null;
+  sendText(text: string): Promise<void>;
+  notifyDraft(listingId: number): Promise<void>;
+  /** Prüft den Token, speichert beides und startet den Bot neu. token = undefined behält den gespeicherten. */
+  apply(token: string | undefined, chatId: string): Promise<{ bot: string }>;
+  findChats(token?: string): Promise<{ id: string; name: string }[]>;
+};
+
+/**
+ * Token und Chat-ID kommen aus den Einstellungen der App (Datenbank) oder, wenn dort nichts steht, aus der Umgebung.
+ * Änderungen greifen sofort, der Bot wird ohne Neustart der App neu gestartet. Der Token wird von der API nie zurückgegeben.
+ */
+export class TelegramHub implements TelegramHubApi {
+  private current: { svc: TelegramService; stop: () => Promise<void> } | null = null;
+
+  constructor(
+    private db: Database.Database,
+    private env: { token?: string; chatId?: string },
+    private publicUrl: string,
+    private log: (m: string) => void,
+    private starter: TelegramStarter = startTelegram,
+    private fetchImpl: typeof fetch = fetch,
+  ) {}
+
+  private creds(): { token: string; chatId: string; source: "app" | "env" } | null {
+    const t = getKv(this.db, "telegram_token"), c = getKv(this.db, "telegram_chat_id");
+    if (t && c) return { token: t, chatId: c, source: "app" };
+    if (this.env.token && this.env.chatId) return { token: this.env.token, chatId: this.env.chatId, source: "env" };
+    return null;
+  }
+
+  configured() { return !!this.creds(); }
+  chatId() { return this.creds()?.chatId ?? null; }
+  source() { return this.creds()?.source ?? null; }
+
+  start() {
+    const c = this.creds();
+    if (c && !this.current) this.current = this.starter(this.db, c.token, c.chatId, this.publicUrl, this.log);
+  }
+
+  private async stop() {
+    const cur = this.current;
+    this.current = null;
+    await cur?.stop();
+  }
+
+  async sendText(text: string) {
+    if (!this.current) throw new Error("Telegram ist nicht eingerichtet");
+    await this.current.svc.sendText(text);
+  }
+
+  async notifyDraft(id: number) {
+    await this.current?.svc.notifyDraft(id);
+  }
+
+  private async call<T>(token: string, method: string): Promise<T> {
+    const r = await this.fetchImpl(`https://api.telegram.org/bot${token}/${method}`, { signal: AbortSignal.timeout(10_000) });
+    const j = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: T; description?: string };
+    if (!r.ok || !j.ok) throw new Error(j.description === "Unauthorized" ? "Der Token ist ungültig" : j.description ?? `Telegram antwortet mit ${r.status}`);
+    return j.result as T;
+  }
+
+  async apply(token: string | undefined, chatId: string) {
+    const tok = token?.trim() || getKv(this.db, "telegram_token") || this.env.token;
+    if (!tok) throw new Error("Bitte den Bot-Token eintragen");
+    if (!/^-?\d+$/.test(chatId.trim())) throw new Error("Die Chat-ID besteht nur aus Ziffern (bei Gruppen mit Minuszeichen)");
+    const me = await this.call<{ username: string }>(tok, "getMe");
+    setKv(this.db, "telegram_token", tok);
+    setKv(this.db, "telegram_chat_id", chatId.trim());
+    await this.stop();
+    this.start();
+    return { bot: "@" + me.username };
+  }
+
+  /** Chats, die dem Bot geschrieben haben. getUpdates und der laufende Bot schließen sich aus, daher wird er kurz angehalten. */
+  async findChats(token?: string) {
+    const tok = token?.trim() || this.creds()?.token;
+    if (!tok) throw new Error("Bitte zuerst den Bot-Token eintragen");
+    const wasRunning = !!this.current;
+    await this.stop();
+    try {
+      const updates = await this.call<{ message?: { chat: { id: number; type: string; first_name?: string; title?: string } } }[]>(tok, "getUpdates");
+      const chats = new Map<string, string>();
+      for (const u of updates) if (u.message) chats.set(String(u.message.chat.id), u.message.chat.first_name ?? u.message.chat.title ?? "Chat");
+      return [...chats].map(([id, name]) => ({ id, name }));
+    } finally {
+      if (wasRunning) this.start();
+    }
+  }
 }

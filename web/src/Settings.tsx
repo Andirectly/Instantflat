@@ -13,7 +13,13 @@ export function Settings() {
   const [ingest, setIngest] = useState<{ endpoint: string; token: string } | null>(null);
   const [ver, setVer] = useState<Version | null>(null);
   const [upd, setUpd] = useState("");
-  const [tg, setTg] = useState<boolean | null>(null);
+  const [tgInfo, setTgInfo] = useState<{ configured: boolean; chatId: string | null; source: "app" | "env" | null } | null>(null);
+  const tg = tgInfo === null ? null : tgInfo.configured;
+  const [tgToken, setTgToken] = useState("");
+  const [tgChat, setTgChat] = useState("");
+  const [tgMsg, setTgMsg] = useState("");
+  const [tgBusy, setTgBusy] = useState(false);
+  const [tgChats, setTgChats] = useState<{ id: string; name: string }[]>([]);
   const [test, setTest] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [copied, setCopied] = useState("");
@@ -25,7 +31,7 @@ export function Settings() {
     api<AppSettings>("/api/settings").then(setCfg).catch(() => {});
     api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {});
     api<Version>("/api/version?fresh=1").then(setVer).catch(() => {});
-    api<{ configured: boolean }>("/api/telegram").then((r) => setTg(r.configured)).catch(() => {});
+    api<NonNullable<typeof tgInfo>>("/api/telegram").then((r) => { setTgInfo(r); setTgChat(r.chatId ?? ""); }).catch(() => {});
   }, []);
   const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});
   const setLimit = (n: number) => api<AppSettings>("/api/settings", { dailyLimit: n }, "PUT").then((r) => setCfg((c) => c && { ...c, dailyLimit: r.dailyLimit })).catch((e: Error) => setErr(e.message));
@@ -35,6 +41,30 @@ export function Settings() {
     setBusy(id); setErr("");
     try { await api(`/api/portals/${id}/check`, {}); await load(); } catch (e) { setErr((e as Error).message); }
     setBusy("");
+  }
+
+  async function saveTelegram() {
+    setTgBusy(true);
+    setTgMsg("");
+    try {
+      const r = await api<{ bot: string }>("/api/telegram", { token: tgToken || undefined, chatId: tgChat }, "PUT");
+      setTgMsg(`Verbunden mit ${r.bot}. Der Bot läuft jetzt. Probiere unten die Testnachricht.`);
+      setTgToken("");
+      setTgInfo(await api("/api/telegram"));
+    } catch (e) { setTgMsg((e as Error).message); }
+    setTgBusy(false);
+  }
+
+  async function findChat() {
+    setTgBusy(true);
+    setTgMsg("");
+    setTgChats([]);
+    try {
+      const r = await api<{ chats: { id: string; name: string }[] }>("/api/telegram/find-chat", { token: tgToken || undefined });
+      setTgChats(r.chats);
+      setTgMsg(r.chats.length ? "Tippe auf deinen Namen, um die Chat-ID zu übernehmen." : "Noch keine Nachricht gefunden. Schreibe deinem Bot in Telegram eine Nachricht (zum Beispiel „Hallo“) und versuche es nochmal.");
+    } catch (e) { setTgMsg((e as Error).message); }
+    setTgBusy(false);
   }
 
   async function runTest(kind: "telegram" | "listing") {
@@ -116,6 +146,31 @@ export function Settings() {
           </div>
         </div>
       )}
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2>Telegram</h2>
+        <p className="dim">
+          {tg === null ? "…" : tg ? <>Eingerichtet ({tgInfo?.source === "app" ? "in der App gespeichert" : "aus der Server-Konfiguration"}), Chat-ID {tgInfo?.chatId}.</> : "Noch nicht eingerichtet."}
+          {" "}Den Token bekommst du von <strong>@BotFather</strong> in Telegram (<code>/newbot</code>). Er wird nur auf deinem Server gespeichert und nie wieder angezeigt.
+        </p>
+        <form className="form" onSubmit={(e) => { e.preventDefault(); saveTelegram(); }}>
+          <label>Bot-Token
+            <input type="password" autoComplete="off" value={tgToken} onChange={(e) => setTgToken(e.target.value)} placeholder={tg ? "gespeichert (leer lassen, um ihn zu behalten)" : "123456789:AA…"} />
+          </label>
+          <label>Chat-ID
+            <input inputMode="numeric" value={tgChat} onChange={(e) => setTgChat(e.target.value)} placeholder="z. B. 8308947321" />
+          </label>
+          {tgChats.length > 0 && (
+            <div className="chips" role="group" aria-label="Gefundene Chats">
+              {tgChats.map((c) => <button type="button" key={c.id} className="ghost press chip" onClick={() => { setTgChat(c.id); setTgMsg("Chat-ID übernommen. Jetzt speichern."); }}>{c.name} ({c.id})</button>)}
+            </div>
+          )}
+          <div className="actions">
+            <button type="button" className="ghost press" disabled={tgBusy || (!tgToken && !tg)} onClick={findChat}>Chat-ID finden</button>
+            <button className="cta press" disabled={tgBusy || !tgChat || (!tgToken && !tg)}>{tgBusy ? "Prüft …" : "Speichern"}</button>
+          </div>
+        </form>
+        {tgMsg && <p role="status" className="dim" style={{ marginBottom: 0 }}>{tgMsg}</p>}
+      </div>
       <div className="card" style={{ marginTop: 16 }}>
         <h2>Testlauf</h2>
         <p className="dim">Telegram: <strong>{tg === null ? "…" : tg ? "eingerichtet" : "nicht eingerichtet"}</strong>. Der Testlauf schickt nichts an ein Portal.</p>
