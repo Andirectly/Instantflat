@@ -33,6 +33,21 @@ const PORTALS: Record<string, string> = {
   wggesucht: "wggesucht", // Fredy sendet "wgGesucht"
 };
 
+// WG-Gesucht liefert über Fredy weder Titel noch Adresse, aber der Link nennt Art, Stadt und Stadtteil:
+// /wohnungen-in-Koeln-Altstadt-Nord.13643651.html. Daraus entsteht ein grober Ort (Stadtteil) für Radius und Entwurf.
+const WG_TYPES: Record<string, string> = { wohnungen: "Wohnung", "1-zimmer-wohnungen": "1-Zimmer-Wohnung", "wg-zimmer": "WG-Zimmer", haeuser: "Haus" };
+const UMLAUTE: [string, string][] = [["Koeln", "Köln"], ["Muelheim", "Mülheim"], ["Suelz", "Sülz"], ["Loevenich", "Lövenich"], ["Sued", "Süd"], ["Weiss", "Weiß"]];
+const fix = (t: string) => UMLAUTE.reduce((a, [from, to]) => a.replaceAll(from, to), t);
+
+export function fromWgUrl(url: string | null | undefined): { title: string; address: string } | null {
+  const m = url?.match(/wg-gesucht\.de\/([a-z0-9-]+?)-in-([A-Za-z0-9-]+)\.\d+\.html/i);
+  const type = m && WG_TYPES[m[1]!.toLowerCase()];
+  if (!m || !type) return null;
+  const [city, ...rest] = fix(m[2]!).split("-");
+  const district = rest.join("-");
+  return { title: `${type} in ${city}${district ? " " + district : ""}`, address: district ? `${district}, ${city}` : city! };
+}
+
 export function ingest(db: Database.Database, input: unknown): { inserted: number; duplicates: number; ignored?: string; passed: number[] } {
   const p = payloadSchema.parse(input);
   if (p.event) return { inserted: 0, duplicates: 0, ignored: p.event, passed: [] }; // z. B. priceChange
@@ -47,6 +62,10 @@ export function ingest(db: Database.Database, input: unknown): { inserted: numbe
   const passed: number[] = [];
   db.transaction(() => {
     for (const l of p.listings) {
+      if (portal === "wggesucht" && (!l.title || !l.address)) {
+        const d = fromWgUrl(l.url);
+        if (d) { l.title = l.title || d.title; l.address = l.address || d.address; }
+      }
       const facts: Facts = {
         rent: parseNumber(l.price),
         sizeM2: parseNumber(l.size),

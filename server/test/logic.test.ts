@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseNumber, parseRooms } from "../src/parse.js";
 import { evaluate, NO_FILTERS, type Facts } from "../src/filter.js";
 import { openDb } from "../src/db.js";
-import { ingest } from "../src/ingest.js";
+import { fromWgUrl, ingest } from "../src/ingest.js";
 import { listListings, setFilters, transition, TransitionError } from "../src/listings.js";
 
 describe("parseNumber", () => {
@@ -44,6 +44,22 @@ describe("evaluate", () => {
     expect(evaluate(facts(), { ...NO_FILTERS, districts: ["Nippes"] }).pass).toBe(false);
     expect(evaluate(facts(), { ...NO_FILTERS, districts: ["ehrenfeld"] }).pass).toBe(true);
     expect(evaluate(facts({ text: "WG-Zimmer, Tausch möglich" }), { ...NO_FILTERS, excludeWords: ["tausch"] }).pass).toBe(false);
+  });
+});
+
+describe("WG-Gesucht: Titel und Ort aus dem Link", () => {
+  it.each([
+    ["https://www.wg-gesucht.de/wohnungen-in-Koeln-Altstadt-Nord.13643651.html", "Wohnung in Köln Altstadt-Nord", "Altstadt-Nord, Köln"],
+    ["https://www.wg-gesucht.de/wohnungen-in-Koeln-Eil.12897122.html", "Wohnung in Köln Eil", "Eil, Köln"],
+    ["https://www.wg-gesucht.de/1-zimmer-wohnungen-in-Koeln-Neustadt-Sued.1.html", "1-Zimmer-Wohnung in Köln Neustadt-Süd", "Neustadt-Süd, Köln"],
+    ["https://www.wg-gesucht.de/wg-zimmer-in-Koeln-Muelheim.2.html", "WG-Zimmer in Köln Mülheim", "Mülheim, Köln"],
+  ])("%s", (url, title, address) => expect(fromWgUrl(url)).toEqual({ title, address }));
+  it("anderer Link → null; vorhandene Daten werden nicht überschrieben", () => {
+    expect(fromWgUrl("https://www.immowelt.de/expose/abc")).toBeNull();
+    expect(fromWgUrl(null)).toBeNull();
+    const db = openDb(":memory:");
+    ingest(db, { provider: "wgGesucht", listings: [{ id: "1", title: "", price: "800 €", url: "https://www.wg-gesucht.de/wohnungen-in-Koeln-Eil.1.html" }, { id: "2", title: "Eigener Titel", address: "Straße 1, Köln", url: "https://www.wg-gesucht.de/wohnungen-in-Koeln-Eil.2.html" }] });
+    expect(db.prepare("SELECT title, address FROM listings ORDER BY id").all()).toEqual([{ title: "Wohnung in Köln Eil", address: "Eil, Köln" }, { title: "Eigener Titel", address: "Straße 1, Köln" }]);
   });
 });
 
