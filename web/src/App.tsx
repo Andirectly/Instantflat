@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "./api";
+import { api, fredyUrl } from "./api";
 import { Overview } from "./Overview";
 import { Review } from "./Review";
 import { Searches } from "./Searches";
@@ -75,6 +75,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           {PAGES.map((p) => (
             <a key={p.id} className="nav press" href={`#${p.id}`} aria-current={page === p.id ? "page" : undefined}>{p.label}</a>
           ))}
+          {/* Fredys Oberfläche liegt auf demselben Server (Port 9998), die Adresse folgt der, mit der du Instantflat gerade öffnest (Heimnetz oder Tailscale). */}
+          <a className="nav press" href={fredyUrl()} target="_blank" rel="noreferrer">Fredy öffnen ↗</a>
         </nav>
         <div className="spacer" />
         <button className="nav press" onClick={() => api("/api/auth/logout", {}).then(onLogout)}>Abmelden</button>

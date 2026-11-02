@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ago, api, type AppSettings, type PortalsInfo, type PortalStatus } from "./api";
+import { ago, api, fredyUrl, type AppSettings, type PortalsInfo, type PortalStatus } from "./api";
 
 const LABEL: Record<PortalStatus["state"], string> = {
   ok: "Angemeldet", session_expired: "Abgemeldet", interaction_required: "Eingabe nötig", error: "Prüfung fehlgeschlagen", unknown: "Noch nicht geprüft",
@@ -192,6 +192,7 @@ export function Settings() {
       {fr && (
         <div className="card" style={{ marginTop: 16 }}>
           <h2>Fredy-Details</h2>
+          <p style={{ marginTop: 0 }}><a href={fredyUrl()} target="_blank" rel="noreferrer">Fredy-Oberfläche öffnen ↗</a></p>
           <p className="dim">
             Für Inserate, die deinen ersten Filter bestehen, lässt Instantflat Fredy die <strong>Detailseite</strong> laden (nur dieses eine Inserat, kein Massenabruf).
             Danach gibt es Beschreibung, genaue Adresse und, falls genannt, den Ansprechpartner für die Anrede. Mit den neuen Daten wird noch einmal gefiltert (zum Beispiel Ausschlusswörter im Text).

@@ -35,3 +35,6 @@ export type AppSettings = { mode: "manual" | "auto"; dailyLimit: number; dryRun:
 export type LogEntry = { id: number; portal: string; dryRun: number; result: "ok" | "dry_run" | "failed" | "blocked"; detail: string | null; shots: string[]; durationMs: number | null; at: string; title: string };
 export type OutboxEntry = { id: number; portal: string; status: "queued" | "sending" | "dry_done" | "failed" | "unknown"; attempts: number; lastError: string | null; queuedAt: string; title: string };
 export type PortalsInfo ={ monitoring: boolean; loginUrl: string; portals: PortalStatus[] };
+
+// Fredys Oberfläche liegt auf demselben Server (Port 9998). Die Adresse folgt der, mit der Instantflat gerade geöffnet ist (Heimnetz oder Tailscale).
+export const fredyUrl = () => `${location.protocol}//${location.hostname}:9998/`;

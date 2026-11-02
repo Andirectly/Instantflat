@@ -9,6 +9,7 @@ test("Setup, Übersicht, Freigabe, Filter – Desktop und Handy", async ({ page,
   await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible();
 
   // Profil anlegen (wird automatisch aktiv)
+  await expect(page.getByRole("link", { name: "Fredy öffnen" })).toHaveAttribute("href", /:9998\/$/); // Link zur Fredy-Oberfläche
   await page.getByRole("link", { name: "Profil" }).click();
   await page.getByLabel("Name (so unterschreibst du)").fill("Max Muster");
   await page.getByLabel("Beruf").fill("Videograf");
