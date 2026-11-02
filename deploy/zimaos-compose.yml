@@ -58,8 +58,8 @@ services:
     volumes:
       - /DATA/AppData/instantflat/fredy/conf:/conf
       - /DATA/AppData/instantflat/fredy/db:/db
-    expose:
-      - "9998"
+    ports:
+      - "9998:9998"                              # Fredy-Oberfläche im Heimnetz; Passwort sofort ändern (Standard admin/admin)
 
 x-casaos:
   architectures:

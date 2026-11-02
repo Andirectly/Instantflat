@@ -8,7 +8,7 @@ ZimaOS' "Custom App" nimmt eine Compose-Datei mit **fertigen Images** und baut n
 3. In der Datei `PUBLIC_URL` auf die Adresse deines ZimaOS setzen (zum Beispiel `http://192.168.1.106:8095`, Port wie unter `ports`) und optional Telegram-Token und Chat-ID eintragen. `DRY_RUN` bleibt `"true"`.
 4. *Install* klicken. Danach die Oberfläche öffnen und das Passwort festlegen.
 5. **Schlüssel:** `APP_SECRET` und `INGEST_TOKEN` müssen nicht gesetzt werden. Sie werden beim ersten Start erzeugt und unter `/DATA/AppData/instantflat/data/secrets.json` abgelegt. In Instantflat unter *Einstellungen → Fredy anbinden* stehen Endpoint und Token zum Kopieren.
-6. Weiter mit Abschnitt 5 (Fredy einrichten) und 6 (Portale anmelden). Die kalibrierten Selektoren für ImmoScout24, Immowelt und WG-Gesucht sind im Image enthalten. Eine eigene `portals.json` im Datenordner hat Vorrang.
+6. **Fredy** erreichst du im Heimnetz unter `http://<ZimaOS-Adresse>:9998` (Standard-Login `admin`/`admin`, **sofort ändern**). Weiter mit Abschnitt 5 (Fredy einrichten) und 6 (Portale anmelden). Die kalibrierten Selektoren für ImmoScout24, Immowelt und WG-Gesucht sind im Image enthalten. Eine eigene `portals.json` im Datenordner hat Vorrang.
 7. **Update:** Auf GitHub baut der Push neue Images. In ZimaOS die App neu laden (Pull) bzw. neu installieren, die Daten bleiben in `/DATA/AppData/instantflat/`.
 
 Den Rest dieses Dokuments (Clone, `.env`, `docker compose --build`) brauchst du nur, wenn du den Stack per Terminal statt als Custom App betreiben willst.

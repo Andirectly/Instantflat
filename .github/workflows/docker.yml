@@ -5,6 +5,7 @@ name: Docker-Images
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "deploy/**", "**/*.md"]
   workflow_dispatch:
     inputs:
       llm:
