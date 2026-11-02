@@ -22,6 +22,8 @@ services:
     depends_on:
       - browser
       - fredy
+    networks:
+      - internal
     x-casaos:
       envs:
         - container: PUBLIC_URL
@@ -50,6 +52,8 @@ services:
     expose:
       - "6080"
       - "9223"
+    networks:
+      - internal
 
   fredy:
     image: ghcr.io/orangecoding/fredy:30.1.2
@@ -60,6 +64,15 @@ services:
       - /DATA/AppData/instantflat/fredy/db:/db
     ports:
       - "9998:9998"                              # Fredy-Oberfläche im Heimnetz; Passwort sofort ändern (Standard admin/admin)
+    networks:
+      - internal
+
+# Eigenes Netz, damit sich die Container über ihre Namen (browser, instantflat, fredy) finden.
+# Auf dem Standardnetz "bridge" geht das nicht.
+networks:
+  internal:
+    name: instantflat_internal
+    driver: bridge
 
 x-casaos:
   architectures:
