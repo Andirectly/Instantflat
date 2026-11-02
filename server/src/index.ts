@@ -30,7 +30,19 @@ const monitor = cfg.SESSION_MONITOR
 const app = await buildApp(cfg, db, { notify: tg ? (id) => tg.notifyDraft(id) : undefined, monitor });
 monitor?.start();
 // Der Worker sendet nur, wenn die Session-Überwachung läuft (er braucht den Portalstatus).
-if (monitor) new Worker(db, defs, monitor, withPage, { dryRun: cfg.DRY_RUN, shotDir: join(cfg.DATA_DIR, "screenshots"), notify: say }).start();
+const worker = monitor ? new Worker(db, defs, monitor, withPage, { dryRun: cfg.DRY_RUN, shotDir: join(cfg.DATA_DIR, "screenshots"), notify: say }) : undefined;
+worker?.start();
 await app.listen({ port: cfg.APP_PORT, host: "0.0.0.0" });
 if (cfg.DRY_RUN) app.log.warn("DRY_RUN aktiv: es wird nichts final gesendet");
 if (!tg) app.log.info("Telegram aus (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID fehlen)");
+
+// Sauber beenden (docker stop / Update): Timer anhalten, Server schließen, Datenbank flushen. Ohne das wartet Docker 30 s bis zum Kill.
+const shutdown = async () => {
+  monitor?.stop();
+  worker?.stop();
+  await app.close().catch(() => {});
+  db.close();
+  process.exit(0);
+};
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
