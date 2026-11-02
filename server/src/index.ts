@@ -10,6 +10,7 @@ import { cdpWithPage } from "./portals/cdp.js";
 import { mockPortal, REAL_PORTALS } from "./portals/defs.js";
 import { loadPortalDefs } from "./portals/config.js";
 import { Worker } from "./worker.js";
+import { inspectPortal } from "./portals/inspect.js";
 
 const cfg = loadConfig(ensureSecrets(process.env, process.env.DATA_DIR ?? "./data"));
 const db = openDb(join(cfg.DATA_DIR, "instantflat.db"));
@@ -28,7 +29,13 @@ const withPage = cdpWithPage(cfg.BROWSER_CDP_URL);
 const monitor = cfg.SESSION_MONITOR
   ? new SessionMonitor(db, defs, withPage, say, `${cfg.PUBLIC_URL}/browser/vnc.html?autoconnect=1&resize=scale&path=browser/websockify`)
   : undefined;
-const app = await buildApp(cfg, db, { notify: (id) => tg.notifyDraft(id), monitor, telegram: tg });
+const app = await buildApp(cfg, db, { notify: (id) => tg.notifyDraft(id), monitor, telegram: tg,
+  inspector: async (id, o) => {
+    const def = defs.find((d) => d.id === id);
+    if (!def) throw new Error("Unbekanntes Portal");
+    return inspectPortal(cfg.BROWSER_CDP_URL, def, o);
+  },
+});
 monitor?.start();
 // Der Worker sendet nur, wenn die Session-Überwachung läuft (er braucht den Portalstatus).
 const worker = monitor ? new Worker(db, defs, monitor, withPage, { dryRun: cfg.DRY_RUN, shotDir: join(cfg.DATA_DIR, "screenshots"), notify: say }) : undefined;

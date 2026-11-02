@@ -31,10 +31,10 @@ describe("SessionMonitor", () => {
   let pageHas: string[];
   let fail: boolean;
   const msgs: string[] = [];
-  const mk = () => new SessionMonitor(openDb(":memory:"), [mockPortal("http://x")], async (_u, fn) => {
+  const mk = (rand?: () => number) => new SessionMonitor(openDb(":memory:"), [mockPortal("http://x")], async (_u, fn) => {
     if (fail) throw new Error("Browser nicht erreichbar");
     return fn(fakePage(pageHas) as never);
-  }, async (t) => void msgs.push(t), "http://app/browser");
+  }, async (t) => void msgs.push(t), "http://app/browser", rand);
   beforeEach(() => { pageHas = [sel.loggedIn]; fail = false; msgs.length = 0; });
 
   it("erste Messung ok ist still; Wechsel melden genau einmal", async () => {
@@ -70,14 +70,14 @@ describe("SessionMonitor", () => {
 
   it("Zeitplan: 30-60 Minuten", async () => {
     vi.useFakeTimers();
-    const m = mk();
+    const m = mk(() => 0.5); // deterministisch: erste Prüfung nach 3 Min, danach alle 45 Min
     const spy = vi.spyOn(m, "check").mockResolvedValue({} as never);
     m.start();
     await vi.advanceTimersByTimeAsync(5 * 60_000);
-    expect(spy).toHaveBeenCalledTimes(1); // Start-Versatz höchstens 5 Min
-    await vi.advanceTimersByTimeAsync(29 * 60_000);
+    expect(spy).toHaveBeenCalledTimes(1); // Start-Versatz 1 bis 5 Min
+    await vi.advanceTimersByTimeAsync(29 * 60_000); // bis Minute 34
     expect(spy).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(31 * 60_000);
+    await vi.advanceTimersByTimeAsync(31 * 60_000); // bis Minute 65
     expect(spy).toHaveBeenCalledTimes(2);
     m.stop();
     vi.useRealTimers();

@@ -17,6 +17,7 @@ import type { SessionMonitor } from "./portals/monitor.js";
 import { getDailyLimit, getMode, NIGHT_FROM, NIGHT_TO, setDailyLimit, setMode } from "./outbox.js";
 import { filtersSchema } from "./filter.js";
 import type { TelegramHubApi } from "./telegram.js";
+import type { Inspector } from "./portals/inspect.js";
 import { createUpdater, type Updater } from "./update.js";
 import { cachedGeocode, nominatimGeocoder, type Geocoder } from "./geo.js";
 import { autoSendable, geoCheck, getFilters, listListings, overview, setFilters, STATES, transition, TransitionError, type State } from "./listings.js";
@@ -27,7 +28,7 @@ const pwBody = z.object({ password: z.string().min(10, "Mind. 10 Zeichen").max(2
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: TelegramHubApi } = {}): Promise<FastifyInstance> {
+export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: TelegramHubApi; inspector?: Inspector } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", bodyLimit: 2 * 1024 * 1024 });
   app.setErrorHandler((e, _req, reply) => {
     if (e instanceof z.ZodError) return reply.code(400).send({ error: "Ungültige Eingabe", issues: e.issues });
@@ -202,6 +203,12 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
     if (!opts.monitor) return reply.code(409).send({ error: "Session-Überwachung ist aus (SESSION_MONITOR=true)" });
     const { url } = z.object({ url: z.string().url().optional() }).parse(req.body ?? {});
     try { return await opts.monitor.probe((req.params as { id: string }).id, url); } catch (e) { return reply.code(502).send({ error: (e as Error).message.split("\n")[0] }); }
+  });
+  // Kalibrierhilfe: beschreibt eine im Server-Browser offene Seite (nur lesend). Mit compare zusätzlich der Vergleich mit einem ausgeloggten Besuch.
+  app.post("/api/portals/:id/inspect", auth, async (req, reply) => {
+    if (!opts.inspector) return reply.code(409).send({ error: "Nicht verfügbar (Browser-Container fehlt)" });
+    const b = z.object({ match: z.string().max(200).optional(), index: z.number().int().min(0).max(20).optional(), compare: z.boolean().optional() }).parse(req.body ?? {});
+    try { return await opts.inspector((req.params as { id: string }).id, b); } catch (e) { return reply.code(502).send({ error: (e as Error).message.split("\n")[0] }); }
   });
   // noVNC des Browser-Containers, nur mit App-Login erreichbar (HTTP und WebSocket).
   await app.register(proxy, { upstream: cfg.BROWSER_VNC_URL, prefix: "/browser", rewritePrefix: "/", websocket: true, ...auth });
