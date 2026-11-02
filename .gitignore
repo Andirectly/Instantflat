@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+data/
+*.db
+*.db-*
+e2e/.data/
+e2e/shots/
+test-results/

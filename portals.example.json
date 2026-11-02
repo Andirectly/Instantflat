@@ -1,0 +1,17 @@
+{
+  "immoscout24": {
+    "selectors": {
+      "loggedIn": "CSS-Selektor, der NUR eingeloggt vorkommt (z. B. Konto-Menü)",
+      "loggedOut": "CSS-Selektor des Login-Formulars oder Login-Buttons",
+      "interaction": "CSS-Selektor von Captcha oder Code-Abfrage (mehrere mit Komma)"
+    },
+    "send": {
+      "message": "CSS-Selektor des Nachrichtenfelds im Kontaktformular",
+      "submit": "CSS-Selektor des Absenden-Buttons",
+      "success": "CSS-Selektor, der nach erfolgreichem Absenden erscheint"
+    }
+  },
+  "kleinanzeigen": { "selectors": null, "send": null },
+  "immowelt": { "selectors": null, "send": null },
+  "wggesucht": { "selectors": null, "send": null }
+}

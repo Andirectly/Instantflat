@@ -1,0 +1,47 @@
+{
+  "immoscout24": {
+    "url": "https://www.immobilienscout24.de/meinkonto/",
+    "selectors": {
+      "loggedIn": "[data-testid=\"logout-button\"]",
+      "loggedOut": "form#loginForm",
+      "interaction": "[class*=\"captcha\" i]:visible, [id*=\"captcha\" i]:visible, [data-testid*=\"captcha\" i]:visible, iframe[src*=\"geetest\"]:visible, iframe[src*=\"hcaptcha\"]:visible, input[autocomplete=\"one-time-code\"]:visible"
+    },
+    "send": {
+      "message": "form[data-testid=\"contact-form\"] textarea#message",
+      "submit": "form[data-testid=\"contact-form\"] button[type=\"submit\"]",
+      "success": "[role=\"dialog\"]:has-text(\"Interesse bekundet\")",
+      "loggedOut": "[data-testid=\"login-section\"]",
+      "opener": "[data-testid=\"tenant-network-express-interest-cta\"]"
+    }
+  },
+  "immowelt": {
+    "url": "https://www.immowelt.de/meinbereich/consumer-hub",
+    "selectors": {
+      "loggedIn": "[data-testid=\"shell_ufrn_header-UserToolbar-UserButton-account-in\"]",
+      "loggedOut": "input[type=\"password\"], [data-testid*=\"UserButton-account-out\"]",
+      "interaction": "[class*=\"captcha\" i]:visible, [id*=\"captcha\" i]:visible, iframe[src*=\"captcha-delivery.com\"]:visible"
+    },
+    "send": {
+      "message": "form[data-testid=\"cdp-contact-form\"] textarea[name=\"message\"]",
+      "submit": "form[data-testid=\"cdp-contact-form\"] button[data-testid=\"cdp-contact-form-submit.chat\"]",
+      "success": "[data-testid=\"cdp-confirm-page\"]",
+      "requireLoggedIn": "[data-testid=\"shell_ufrn_header-UserToolbar-UserButton-account-in\"]"
+    }
+  },
+  "wggesucht": {
+    "url": "https://www.wg-gesucht.de/mein-wg-gesucht-filter.html",
+    "selectors": {
+      "loggedIn": "a.logout_button",
+      "loggedOut": "input[type=\"password\"]",
+      "interaction": "[class*=\"captcha\" i]:visible, [id*=\"captcha\" i]:visible, iframe[src*=\"captcha\" i]:visible"
+    },
+    "send": {
+      "opener": "a[href*=\"/nachricht-senden/\"]:visible",
+      "message": "form#messenger_form textarea#message_input",
+      "submit": "form#messenger_form button[type=\"submit\"]",
+      "success": "#message_successfully_sent:visible",
+      "requireLoggedIn": "a.logout_button",
+      "host": "wg-gesucht.de"
+    }
+  }
+}
