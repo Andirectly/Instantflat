@@ -8,7 +8,7 @@ Die Selektoren liegen in `config/portals.json` (ohne Zugangsdaten, im Repo). Auf
 | ImmoScout24 | `logout-button` auf `/meinkonto/` | Öffner "Interesse bekunden", dann `contact-form` | Dialog "Interesse bekundet" | live bestätigt (Senden manuell beobachtet) |
 | Immowelt | `UserButton-account-in` auf `/meinbereich/consumer-hub` | `cdp-contact-form` direkt, Feld ist vorbefüllt (wird geleert) | `cdp-confirm-page` | live bestätigt |
 | WG-Gesucht | `a.logout_button` auf `/mein-wg-gesucht-filter.html` | Link `/nachricht-senden/` öffnet `form#messenger_form` | `#message_successfully_sent:visible` | live bestätigt, nur native Anzeigen |
-| Kleinanzeigen | – | – | – | nicht kalibriert (IP-Sperre bei Login-Versuch) |
+| Kleinanzeigen | `data-testid="logged-in-user"` auf der Startseite (ausgeloggt: `#site-signin`) | Öffner `#viewad-contact-button`, Kontaktbox `#viewad-contact-form-container`, Button "Nachricht senden" | **fehlt noch** (einmal manuell senden und Bestätigung auslesen) | Anmeldung per Inspektor-Vergleich ermittelt, Formular nur aus der Seitenstruktur abgeleitet |
 
 ## Bekannte Lücken
 - Der `loggedOut`-Selektor ist bei Immowelt und WG-Gesucht geraten (ausgeloggte Seite nicht gesehen). `requireLoggedIn` verhindert Versand als Gast trotzdem.

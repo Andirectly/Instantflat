@@ -40,6 +40,12 @@ describe("SessionMonitor.probe", () => {
     expect(seen).toEqual(["https://x/seite"]);
     expect(r).toMatchObject({ url: "https://x/seite", title: "Titel", counts: { loggedIn: 2, loggedOut: 0, interaction: 0, message: 0, submit: 0, success: 0 } });
   });
+  it("zusätzliche Selektoren werden mitgezählt", async () => {
+    const page = { url: () => "u", title: async () => "t", locator: (s: string) => ({ count: async () => (s === "#x" ? 3 : 0) }) };
+    const m = new SessionMonitor(openDb(":memory:"), [REAL_PORTALS[0]!], (async (_u: string, fn: (p: unknown) => unknown) => fn(page)) as never, async () => {}, "x");
+    expect((await m.probe("immoscout24", undefined, { eigener: "#x" })).counts).toEqual({ eigener: 3 });
+  });
+
   it("unkalibriertes Portal: leere Zählung statt Fehler", async () => {
     const m = new SessionMonitor(openDb(":memory:"), [REAL_PORTALS[0]!], (async (_u: string, fn: (p: unknown) => unknown) => fn({ url: () => "u", title: async () => "t", locator: () => ({ count: async () => 0 }) })) as never, async () => {}, "x");
     expect((await m.probe("immoscout24")).counts).toEqual({});

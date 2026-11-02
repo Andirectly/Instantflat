@@ -43,5 +43,22 @@
       "requireLoggedIn": "a.logout_button",
       "host": "wg-gesucht.de"
     }
+  },
+  "kleinanzeigen": {
+    "url": "https://www.kleinanzeigen.de/",
+    "selectors": {
+      "loggedIn": "[data-testid=\"logged-in-user\"]",
+      "loggedOut": "#site-signin",
+      "interaction": "[class*=\"captcha\" i]:visible, [id*=\"captcha\" i]:visible, iframe[src*=\"captcha\" i]:visible"
+    },
+    "send": {
+      "opener": "#viewad-contact-button",
+      "message": "#viewad-contact-form-container textarea:visible",
+      "submit": "#viewad-contact-form-container button:has-text(\"Nachricht senden\")",
+      "success": "[data-testid=\"UNKALIBRIERT-success\"]",
+      "requireLoggedIn": "[data-testid=\"logged-in-user\"]",
+      "loggedOut": "#site-signin",
+      "host": "kleinanzeigen.de"
+    }
   }
 }

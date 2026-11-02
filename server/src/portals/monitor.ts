@@ -69,10 +69,10 @@ export class SessionMonitor {
   }
 
   /** Kalibrierhilfe: zählt, wie oft jeder konfigurierte Selektor auf der aktuellen Seite vorkommt (nur lesend). */
-  async probe(id: string, url?: string): Promise<{ url: string; title: string; counts: Record<string, number> }> {
+  async probe(id: string, url?: string, extra: Record<string, string> = {}): Promise<{ url: string; title: string; counts: Record<string, number> }> {
     const def = this.defs.find((d) => d.id === id);
     if (!def) throw new Error("Unbekanntes Portal");
-    const sels = { ...(def.selectors ?? {}), ...(def.send ?? {}) } as Record<string, string>;
+    const sels = { ...(def.selectors ?? {}), ...(def.send ?? {}), ...extra } as Record<string, string>;
     return this.withPage(url ?? def.url, async (page) => (await page.waitForLoadState?.("networkidle", { timeout: 8000 }).catch(() => {}), {
       url: page.url(),
       title: await page.title(),

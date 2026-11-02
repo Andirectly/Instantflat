@@ -201,8 +201,8 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   });
   app.post("/api/portals/:id/probe", auth, async (req, reply) => {
     if (!opts.monitor) return reply.code(409).send({ error: "Session-Überwachung ist aus (SESSION_MONITOR=true)" });
-    const { url } = z.object({ url: z.string().url().optional() }).parse(req.body ?? {});
-    try { return await opts.monitor.probe((req.params as { id: string }).id, url); } catch (e) { return reply.code(502).send({ error: (e as Error).message.split("\n")[0] }); }
+    const { url, selectors } = z.object({ url: z.string().url().optional(), selectors: z.record(z.string().max(300)).refine((o) => Object.keys(o).length <= 20).optional() }).parse(req.body ?? {});
+    try { return await opts.monitor.probe((req.params as { id: string }).id, url, selectors); } catch (e) { return reply.code(502).send({ error: (e as Error).message.split("\n")[0] }); }
   });
   // Kalibrierhilfe: beschreibt eine im Server-Browser offene Seite (nur lesend). Mit compare zusätzlich der Vergleich mit einem ausgeloggten Besuch.
   app.post("/api/portals/:id/inspect", auth, async (req, reply) => {
