@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { filtersSchema, NO_FILTERS, type Filters } from "./filter.js";
-import { cachedGeocode, haversineKm, type Geocoder } from "./geo.js";
+import { cachedGeocode, haversineKm, type Geocoder, type GeoResult } from "./geo.js";
 
 export const STATES = ["gefunden", "gefiltert", "verworfen", "entwurf", "freigegeben", "gesendet", "antwort"] as const;
 export type State = (typeof STATES)[number];
@@ -49,7 +49,8 @@ export function overview(db: Database.Database) {
 }
 
 const COLS = `id, portal, title, address, price, size, rent, size_m2 AS sizeM2, rooms, url, image_url AS imageUrl,
-  description, state, filter_reason AS filterReason, found_at AS foundAt, dist_km AS distKm, geo`;
+  description, state, filter_reason AS filterReason, found_at AS foundAt, dist_km AS distKm, geo,
+  contact_name AS contactName, contact_kind AS contactKind, contact_salutation AS contactSalutation, enriched`;
 
 export function listListings(db: Database.Database, opts: { states?: State[]; limit?: number; offset?: number }) {
   const states = opts.states?.length ? opts.states : [...STATES];
@@ -68,9 +69,12 @@ export type GeoOutcome = "skip" | "ok" | "unknown" | "dropped";
 export async function geoCheck(db: Database.Database, geocoder: Geocoder, listingId: number): Promise<GeoOutcome> {
   const flt = getFilters(db);
   if (!flt.center || !flt.radiusKm) return "skip";
-  const l = db.prepare("SELECT address, state FROM listings WHERE id = ?").get(listingId) as { address: string | null; state: string } | undefined;
+  const l = db.prepare("SELECT address, state, lat, lon FROM listings WHERE id = ?").get(listingId) as { address: string | null; state: string; lat: number | null; lon: number | null } | undefined;
   if (!l || l.state !== "gefiltert") return "skip";
-  const res = l.address ? await cachedGeocode(db, geocoder, l.address) : null;
+  // Koordinaten aus Fredys Detailabruf haben Vorrang vor unserer Adresssuche.
+  const res: GeoResult | null = l.lat != null && l.lon != null
+    ? { lat: l.lat, lon: l.lon, precision: /\d/.test(l.address ?? "") ? "ok" : "approx", label: l.address ?? "" }
+    : l.address ? await cachedGeocode(db, geocoder, l.address) : null;
   if (!res || res.precision === "unknown") {
     db.prepare("UPDATE listings SET geo = 'unknown' WHERE id = ?").run(listingId);
     return "unknown";

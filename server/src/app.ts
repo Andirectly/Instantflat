@@ -18,6 +18,8 @@ import { getDailyLimit, getMode, NIGHT_FROM, NIGHT_TO, setDailyLimit, setMode } 
 import { filtersSchema } from "./filter.js";
 import type { TelegramHubApi } from "./telegram.js";
 import type { Inspector } from "./portals/inspect.js";
+import { FredyClient, getFredySettings, setFredySettings, type FredyPort } from "./fredy.js";
+import { enrichListing } from "./enrich.js";
 import { createUpdater, type Updater } from "./update.js";
 import { cachedGeocode, nominatimGeocoder, type Geocoder } from "./geo.js";
 import { autoSendable, geoCheck, getFilters, listListings, overview, setFilters, STATES, transition, TransitionError, type State } from "./listings.js";
@@ -28,7 +30,7 @@ const pwBody = z.object({ password: z.string().min(10, "Mind. 10 Zeichen").max(2
 
 const safeEq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: TelegramHubApi; inspector?: Inspector } = {}): Promise<FastifyInstance> {
+export async function buildApp(cfg: Config, db: Database.Database, opts: { webDir?: string; generator?: Generator; notify?: (listingId: number) => Promise<void>; monitor?: SessionMonitor; geocoder?: Geocoder; updater?: Updater; telegram?: TelegramHubApi; inspector?: Inspector; fredy?: FredyPort } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", bodyLimit: 2 * 1024 * 1024 });
   app.setErrorHandler((e, _req, reply) => {
     if (e instanceof z.ZodError) return reply.code(400).send({ error: "Ungültige Eingabe", issues: e.issues });
@@ -55,9 +57,14 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   const gen = opts.generator ?? (cfg.LLM_PROVIDER === "local" ? localGenerator(cfg) : templateGenerator);
   const notify = opts.notify ?? (async () => {});
   const geocoder = opts.geocoder ?? nominatimGeocoder();
+  const fredy: FredyPort = opts.fredy ?? new FredyClient(db);
   // Im Hintergrund und nacheinander: Geocoder (1 Anfrage/s) und lokales Modell sind langsam.
   async function processNew(ids: number[]) {
     for (const id of ids) {
+      try {
+        // Zweite Stufe: Details von Fredy (nur für Inserate, die den ersten Filter bestanden haben), dann noch einmal filtern.
+        if ((await enrichListing(db, fredy, id)) === "dropped") continue;
+      } catch (e) { app.log.warn({ err: (e as Error).message, id }, "Detail-Anreicherung fehlgeschlagen, es geht ohne weiter"); }
       try {
         if ((await geoCheck(db, geocoder, id)) === "dropped") continue;
       } catch (e) { app.log.warn({ err: (e as Error).message, id }, "Radius-Prüfung fehlgeschlagen, Inserat bleibt zur manuellen Prüfung"); }
@@ -221,6 +228,22 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
     if (!updater.canUpdate) return reply.code(409).send({ error: "Update nicht eingerichtet (Watchtower fehlt in der Compose-Datei)" });
     updater.trigger();
     return { started: true };
+  });
+
+  // ---- Fredy-Zugang für die Detail-Anreicherung ----
+  app.get("/api/fredy", auth, async () => getFredySettings(db));
+  app.put("/api/fredy", auth, async (req) => {
+    const b = z.object({ url: z.string().url().max(200).optional(), user: z.string().trim().max(100).optional(), password: z.string().max(200).optional(), enabled: z.boolean().optional() }).parse(req.body);
+    setFredySettings(db, b);
+    return getFredySettings(db);
+  });
+  app.post("/api/fredy/test", auth, async (_req, reply) => {
+    try { await fredy.test(); return { ok: true }; } catch (e) { return reply.code(400).send({ error: (e as Error).message }); }
+  });
+  // Für ein vorhandenes Inserat die Details nachladen und neu bewerten (z. B. wenn der Zugang erst jetzt eingerichtet ist).
+  app.post("/api/listings/:id/enrich", auth, async (req, reply) => {
+    if (!fredy.active()) return reply.code(409).send({ error: "Der Fredy-Zugang ist nicht eingerichtet oder aus (Einstellungen → Fredy-Details)" });
+    return { result: await enrichListing(db, fredy, idParam(req)) };
   });
 
   app.get("/api/ingest-info", auth, async () => ({ endpoint: "http://instantflat:8080/api/ingest", token: cfg.INGEST_TOKEN }));

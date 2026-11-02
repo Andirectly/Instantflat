@@ -3,10 +3,12 @@ import type { Config } from "./config.js";
 import { activeProfile, type ProfileData } from "./profiles.js";
 import { transition } from "./listings.js";
 import { enqueue } from "./outbox.js";
+import { greeting } from "./contact.js";
 
 export type ListingRow = {
   id: number; portal: string; title: string; address: string | null; price: string | null; size: string | null;
   rooms: number | null; description: string | null; state: string;
+  contactName?: string | null; contactKind?: string | null; contactSalutation?: string | null;
 };
 export type Draft = { id: number; listingId: number; version: number; body: string; provider: string; createdAt: string };
 
@@ -41,7 +43,7 @@ export function templateDraft(l: ListingRow, p: ProfileData): string {
     p.viewingTimes ? `Für eine Besichtigung bin ich ${p.viewingTimes} verfügbar.` : "Gerne komme ich zu einer Besichtigung vorbei.",
   ].filter(Boolean).join(" ");
   return [
-    "Guten Tag,",
+    greeting(l),
     `Die ${what}${where} hat mein Interesse geweckt${why}.`,
     [intro, p.extra, closing].filter(Boolean).join(" "),
     "Über eine Rückmeldung würde ich mich sehr freuen.",
@@ -55,7 +57,7 @@ export const templateGenerator: Generator = { name: "template", generate: async 
 
 const SYSTEM = `Du schreibst eine kurze, höfliche Wohnungsanfrage an einen Vermieter, auf Deutsch, mit "Sie", etwa 600 bis 900 Zeichen.
 Regeln:
-- Beginne mit "Guten Tag," und ende mit "Viele Grüße" und dem Namen.
+- Beginne mit "Guten Tag," (oder mit der unter INSERAT genannten Anrede) und ende mit "Viele Grüße" und dem Namen.
 - Nenne 1 bis 2 konkrete Merkmale aus dem Inserat (zum Beispiel Balkon oder Lage), aber nur solche, die dort wirklich stehen.
 - Verwende ausschließlich die Angaben unter PROFIL. Erfinde nichts: keine Arbeitszeiten, keine Eigenschaften der Wohnung, keine Wünsche, keine Zahlen.
 - Schreibe aus Sicht der Person im PROFIL (ich-Form), nicht über den Vermieter.
@@ -82,7 +84,7 @@ export function localGenerator(cfg: Pick<Config, "LLM_URL" | "LLM_MODEL" | "LLM_
   return {
     name: "local",
     async generate(l, p) {
-      const user = `PROFIL:\n${JSON.stringify(p, null, 1)}\n\nINSERAT:\nTitel: ${l.title}\nAdresse: ${l.address ?? "unbekannt"}\nPreis: ${l.price ?? "unbekannt"}\nFläche: ${l.size ?? "unbekannt"}\nBeschreibung: ${l.description ?? "keine"}`;
+      const user = `PROFIL:\n${JSON.stringify(p, null, 1)}\n\nINSERAT:\n${l.contactKind === "person" ? `Anrede: ${greeting(l)}\n` : ""}Titel: ${l.title}\nAdresse: ${l.address ?? "unbekannt"}\nPreis: ${l.price ?? "unbekannt"}\nFläche: ${l.size ?? "unbekannt"}\nBeschreibung: ${l.description ?? "keine"}`;
       const r = await fetchImpl(`${cfg.LLM_URL}/v1/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -137,7 +139,7 @@ export function saveDraft(db: Database.Database, listingId: number, body: string
 
 export function createDraft(db: Database.Database, gen: Generator, listingId: number): Promise<Draft> {
   return serialize(async () => {
-    const l = db.prepare("SELECT id, portal, title, address, price, size, rooms, description, state FROM listings WHERE id = ?").get(listingId) as ListingRow | undefined;
+    const l = db.prepare("SELECT id, portal, title, address, price, size, rooms, description, state, contact_name AS contactName, contact_kind AS contactKind, contact_salutation AS contactSalutation FROM listings WHERE id = ?").get(listingId) as ListingRow | undefined;
     if (!l) throw new DraftError("Inserat nicht gefunden");
     if (l.state !== "gefiltert" && l.state !== "entwurf") throw new DraftError(`Kein Entwurf im Status ${l.state}`);
     const p = activeProfile(db)?.data;

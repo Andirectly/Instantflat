@@ -19,6 +19,10 @@ export function Settings() {
   const [tgChat, setTgChat] = useState("");
   const [tgMsg, setTgMsg] = useState("");
   const [tgBusy, setTgBusy] = useState(false);
+  const [fr, setFr] = useState<{ url: string; user: string; enabled: boolean; passwordSet: boolean } | null>(null);
+  const [frPass, setFrPass] = useState("");
+  const [frMsg, setFrMsg] = useState("");
+  const [frBusy, setFrBusy] = useState(false);
   const [tgChats, setTgChats] = useState<{ id: string; name: string }[]>([]);
   const [test, setTest] = useState("");
   const [testBusy, setTestBusy] = useState(false);
@@ -31,6 +35,7 @@ export function Settings() {
     api<AppSettings>("/api/settings").then(setCfg).catch(() => {});
     api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {});
     api<Version>("/api/version?fresh=1").then(setVer).catch(() => {});
+    api<NonNullable<typeof fr>>("/api/fredy").then(setFr).catch(() => {});
     api<NonNullable<typeof tgInfo>>("/api/telegram").then((r) => { setTgInfo(r); setTgChat(r.chatId ?? ""); }).catch(() => {});
   }, []);
   const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});
@@ -41,6 +46,19 @@ export function Settings() {
     setBusy(id); setErr("");
     try { await api(`/api/portals/${id}/check`, {}); await load(); } catch (e) { setErr((e as Error).message); }
     setBusy("");
+  }
+
+  async function saveFredy(test: boolean) {
+    if (!fr) return;
+    setFrBusy(true);
+    setFrMsg("");
+    try {
+      const saved = await api<NonNullable<typeof fr>>("/api/fredy", { url: fr.url, user: fr.user, password: frPass || undefined, enabled: fr.enabled }, "PUT");
+      setFr(saved);
+      setFrPass("");
+      if (test) { await api("/api/fredy/test", {}); setFrMsg("Verbunden. Fredy hat den Zugang akzeptiert."); } else setFrMsg("Gespeichert.");
+    } catch (e) { setFrMsg((e as Error).message); }
+    setFrBusy(false);
   }
 
   async function saveTelegram() {
@@ -171,6 +189,27 @@ export function Settings() {
         </form>
         {tgMsg && <p role="status" className="dim" style={{ marginBottom: 0 }}>{tgMsg}</p>}
       </div>
+      {fr && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2>Fredy-Details</h2>
+          <p className="dim">
+            Für Inserate, die deinen ersten Filter bestehen, lässt Instantflat Fredy die <strong>Detailseite</strong> laden (nur dieses eine Inserat, kein Massenabruf).
+            Danach gibt es Beschreibung, genaue Adresse und, falls genannt, den Ansprechpartner für die Anrede. Mit den neuen Daten wird noch einmal gefiltert (zum Beispiel Ausschlusswörter im Text).
+            Dafür braucht Instantflat den Login deines Fredy.
+          </p>
+          <form className="form" onSubmit={(e) => { e.preventDefault(); saveFredy(true); }}>
+            <label>Fredy-Adresse<input value={fr.url} onChange={(e) => setFr({ ...fr, url: e.target.value })} placeholder="http://fredy:9998" /></label>
+            <label>Benutzername<input value={fr.user} onChange={(e) => setFr({ ...fr, user: e.target.value })} autoComplete="off" /></label>
+            <label>Passwort<input type="password" value={frPass} onChange={(e) => setFrPass(e.target.value)} autoComplete="off" placeholder={fr.passwordSet ? "gespeichert (leer lassen, um es zu behalten)" : ""} /></label>
+            <label className="check"><input type="checkbox" checked={fr.enabled} onChange={(e) => setFr({ ...fr, enabled: e.target.checked })} />Details für passende Inserate automatisch laden</label>
+            <div className="actions">
+              <button type="button" className="ghost press" disabled={frBusy} onClick={() => saveFredy(false)}>Speichern</button>
+              <button className="cta press" disabled={frBusy || !fr.user || (!fr.passwordSet && !frPass)}>{frBusy ? "Prüft …" : "Speichern und testen"}</button>
+            </div>
+          </form>
+          {frMsg && <p role="status" className="dim" style={{ marginBottom: 0 }}>{frMsg}</p>}
+        </div>
+      )}
       <div className="card" style={{ marginTop: 16 }}>
         <h2>Testlauf</h2>
         <p className="dim">Telegram: <strong>{tg === null ? "…" : tg ? "eingerichtet" : "nicht eingerichtet"}</strong>. Der Testlauf schickt nichts an ein Portal.</p>

@@ -41,6 +41,7 @@ export function Review() {
     const d = await api<Draft>(`/api/listings/${l.id}/draft`, {});
     setDraft(d); setText(d.body); await load();
   });
+  const enrich = () => run("Details werden geladen …", async () => { const r = await api<{ result: string }>(`/api/listings/${l.id}/enrich`, {}); if (r.result === "failed") throw new Error("Fredy konnte die Details nicht laden."); await load(); });
   const discard = () => run("", async () => { await api(`/api/listings/${l.id}/state`, { to: "verworfen" }); await load(); });
   const send = () => run("", async () => {
     if (draft && text.trim() !== draft.body) await api(`/api/listings/${l.id}/draft`, { body: text }, "PUT");
@@ -61,6 +62,7 @@ export function Review() {
           <dl className="facts">
             <dt>Fläche</dt><dd>{l.size ?? "–"}</dd>
             <dt>Zimmer</dt><dd>{l.rooms ?? "–"}</dd>
+            {l.contactName && <><dt>Ansprechpartner</dt><dd>{l.contactKind === "company" ? l.contactName : [l.contactSalutation, l.contactName].filter(Boolean).join(" ")}</dd></>}
             {l.geo && <><dt>Umkreis</dt><dd>{GEO[l.geo](l.distKm)}</dd></>}
           </dl>
           {l.description && <p className="dim clamp">{l.description}</p>}
@@ -78,6 +80,7 @@ export function Review() {
           )}
           {busy && <p className="dim" role="status">{busy}</p>}
           {err && <p className="err" role="alert">{err}</p>}
+          {l.enriched !== "ok" && <div className="actions"><button className="ghost press" disabled={!!busy} onClick={enrich}>Details von Fredy laden</button></div>}
           <div className="actions">
             <button className="ghost press" disabled={!!busy} onClick={generate}>{draft ? "Neu formulieren" : "Entwurf erstellen"}</button>
             <button className="ghost press" disabled={!!busy} onClick={discard}>Verwerfen</button>

@@ -2,6 +2,7 @@ export type Listing = {
   id: number; portal: string; title: string; address: string | null; price: string | null; size: string | null;
   rent: number | null; sizeM2: number | null; rooms: number | null; url: string | null; imageUrl: string | null;
   description: string | null; state: string; filterReason: string | null; foundAt: string; distKm: number | null; geo: "ok" | "approx" | "unknown" | null;
+  contactName: string | null; contactKind: "person" | "company" | null; contactSalutation: "Herr" | "Frau" | null; enriched: "ok" | "failed" | null;
 };
 export type Overview = { today: number; waiting: number; filtered: number; total: number; portals: { portal: string; count: number }[]; recent: Listing[] };
 export type Filters = { maxRent: number | null; minSize: number | null; minRooms: number | null; districts: string[]; excludeWords: string[]; center: { address: string; lat: number; lon: number; label: string } | null; radiusKm: number | null };

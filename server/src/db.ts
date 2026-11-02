@@ -113,6 +113,10 @@ export const MIGRATIONS: string[] = [
      label TEXT,
      at TEXT NOT NULL DEFAULT (datetime('now'))
    );`,
+  `ALTER TABLE listings ADD COLUMN contact_name TEXT;
+   ALTER TABLE listings ADD COLUMN contact_kind TEXT;
+   ALTER TABLE listings ADD COLUMN contact_salutation TEXT;
+   ALTER TABLE listings ADD COLUMN enriched TEXT;`,
 ];
 
 export function openDb(path: string): Database.Database {

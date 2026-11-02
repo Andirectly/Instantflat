@@ -53,3 +53,9 @@ curl -X POST localhost:8080/api/ingest -H "Authorization: Bearer $INGEST_TOKEN" 
 - Außerhalb des Radius: verworfen mit Grund ("7,3 km > 5 km"). Nur Stadtteil bekannt: "Ort ungefähr", zählt als bekannt. Nur Stadt oder keine Adresse: **bleibt zur manuellen Prüfung liegen und wird im Automodus nie automatisch gesendet.**
 - Fällt der Geocoder aus, gilt dasselbe. Eigene Instanz statt der öffentlichen: `nominatimGeocoder({ baseUrl })` in `server/src/geo.ts`.
 - Der Worker prüft die Queue alle 10 Sekunden. Fredy-Intervall (z. B. 3 Minuten) stellst du in Fredy ein.
+
+## Fredy-Details (zweite Filterstufe)
+- In *Einstellungen → Fredy-Details* Adresse, Benutzername und Passwort deines Fredy eintragen (Standardadresse im Docker-Netz: `http://fredy:9998`) und "Speichern und testen". Das Passwort bleibt auf deinem Server und wird nicht zurückgegeben.
+- Für Inserate, die den ersten Filter bestehen, ruft Instantflat Fredys Einzelabruf auf (`POST /api/listings/:id/details`, **ohne** die Massen-Einstellung "provider details", die das Blockrisiko erhöht) und liest Beschreibung, genaue Adresse und Koordinaten.
+- Danach wird noch einmal gefiltert (Ausschlusswörter in der Beschreibung, Umkreis mit Fredys Koordinaten). Der Ansprechpartner wird nur aus Zeilen wie "Agent:", "Ansprechpartner:" oder "Kontakt:" in der Beschreibung gelesen; Firmen und Unklares bekommen kein persönliches "Guten Tag Herr …".
+- Fällt Fredy aus, geht der normale Ablauf ohne Details weiter. In den Freigaben gibt es "Details von Fredy laden" für einzelne Inserate.

@@ -11,7 +11,7 @@ export type TgApi = {
   editMessageText(chatId: string, messageId: number, text: string, other?: Record<string, unknown>): Promise<unknown>;
 };
 
-type L = { id: number; title: string; address: string | null; price: string | null; size: string | null; url: string | null; imageUrl: string | null; state: string };
+type L = { contactName: string | null; contactKind: string | null; contactSalutation: string | null; id: number; title: string; address: string | null; price: string | null; size: string | null; url: string | null; imageUrl: string | null; state: string };
 
 // Kernlogik ohne grammY-Abhängigkeit, damit sie mit einer Fake-API testbar ist.
 export class TelegramService {
@@ -19,7 +19,7 @@ export class TelegramService {
   constructor(private db: Database.Database, private chatId: string, private api: TgApi, private publicUrl: string) {}
 
   private listing(id: number) {
-    return this.db.prepare("SELECT id, title, address, price, size, url, image_url AS imageUrl, state FROM listings WHERE id = ?").get(id) as L | undefined;
+    return this.db.prepare("SELECT id, title, address, price, size, url, image_url AS imageUrl, state, contact_name AS contactName, contact_kind AS contactKind, contact_salutation AS contactSalutation FROM listings WHERE id = ?").get(id) as L | undefined;
   }
 
   async sendText(text: string): Promise<void> {
@@ -30,7 +30,8 @@ export class TelegramService {
     const l = this.listing(listingId);
     const d = latestDraft(this.db, listingId);
     if (!l || !d) return;
-    const facts = [l.title, [l.address, l.size, l.price].filter(Boolean).join(" · "), l.url, `${this.publicUrl}/#freigaben`].filter(Boolean).join("\n");
+    const contact = l.contactName ? `Ansprechpartner: ${l.contactKind === "person" ? [l.contactSalutation, l.contactName].filter(Boolean).join(" ") : l.contactName}` : "";
+    const facts = [l.title, [l.address, l.size, l.price].filter(Boolean).join(" · "), contact, l.url, `${this.publicUrl}/#freigaben`].filter(Boolean).join("\n");
     if (l.imageUrl) await this.api.sendPhoto(this.chatId, l.imageUrl, { caption: facts.slice(0, 1000) }).catch(() => this.api.sendMessage(this.chatId, facts));
     else await this.api.sendMessage(this.chatId, facts);
     const kb = new InlineKeyboard().text("Senden", `a:${l.id}:${d.id}`).text("Verwerfen", `x:${l.id}:${d.id}`).text("Bearbeiten", `e:${l.id}:${d.id}`);
