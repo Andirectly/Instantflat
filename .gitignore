@@ -7,3 +7,6 @@ data/
 e2e/.data/
 e2e/shots/
 test-results/
+.env.*
+!.env.example
+.stack-data/

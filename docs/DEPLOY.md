@@ -66,7 +66,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/instantflat
 docker buildx build --platform linux/amd64,linux/arm64 -t <registry>/instantflat-llm:latest --push llm
 ```
 Im Compose dann `build:` durch `image:` ersetzen. Der `llm`-Build kompiliert llama.cpp und dauert pro Architektur lange.
-Hinweis: Das ist nur aus der Anleitung abgeleitet. Gebaut und gestartet wurde bisher nur für die Architektur des Entwicklungs-PCs (amd64).
+Stand der Prüfung (Docker Desktop, arm64 per Emulation): `instantflat` und `browser` bauen für **linux/arm64**; die App startet, `/api/health` antwortet, SQLite (native) läuft, im Browser-Image sind Chromium, Xvfb, x11vnc, websockify und socat vorhanden. **Nicht geprüft:** `llm` für arm64 (Kompilieren von llama.cpp unter Emulation dauert sehr lange, auf einem arm64-Server nativ bauen) und ein vollständiger Betrieb auf echter arm64-Hardware.
 
 ## 8. Backup
 Alles Wichtige liegt in `/DATA/AppData/instantflat/`: `data/` (SQLite, Screenshots, `portals.json`), `browser-profile/` (Logins), `fredy/`, `models/` (neu ladbar).
@@ -84,3 +84,17 @@ Datenbank-Migrationen laufen beim Start automatisch. Fredy ist auf eine feste Ve
 - Kein Versand trotz Freigabe: Portalstatus "Angemeldet"? Nachtruhe 22–7 Uhr? Tageslimit pro Portal? Verlauf zeigt Gründe.
 - Eintrag "Unklar" im Verlauf: Prüfen, ob die Nachricht beim Portal ankam, dann dort "Wurde gesendet" oder "Nicht gesendet" wählen.
 - Portal sperrt die IP: nicht umgehen, Intervalle verlängern, später erneut versuchen.
+
+## 11. Probelauf auf dem Entwicklungsrechner (verifiziert, Windows/Docker Desktop)
+So lässt sich der Produktions-Stack vor dem Umzug testen, ohne echte Portale anzufragen:
+```bash
+cp .env.example .env.stack          # APP_SECRET, INGEST_TOKEN setzen, SESSION_MONITOR=true, kein Telegram nötig
+mkdir -p .stack-data/data && cp config/portals.json .stack-data/data/portals.json
+DATA_ROOT=./.stack-data ENV_FILE=.env.stack HOST_PORT=18100 docker compose up -d --build
+```
+- UI: http://localhost:18100. Nur dieser Port ist veröffentlicht, Fredy, Browser und CDP bleiben im Docker-Netz.
+- Fredy testen: In einem Container im Netz `instantflat-starter_internal` einloggen und `POST /api/jobs/notificationAdapter/try` mit Adapter `http` an `http://instantflat:8080/api/ingest` aufrufen.
+- Ohne echte Portale: In `.stack-data/data/portals.json` die URLs auf `http://instantflat:8080/` oder auf das Mock-Portal (`mock-portal/`, Container im selben Netz mit Alias `mock-portal`) zeigen lassen.
+- Windows-Hinweis: Umlaute nicht per `curl` in der Git-Bash schicken (Kodierung), sondern per Node oder über die UI.
+
+Bei diesem Probelauf bestätigt: Fredy → Ingest, CDP über das Docker-Netz (Namensauflösung), `/browser`-Proxy nur mit Login, Auto-Modus → Entwurf → Queue → Dry-Run mit Screenshot, danach mit `DRY_RUN=false` genau ein Versand (der Probelauf-Eintrag wurde nach der Pause nachgeholt).

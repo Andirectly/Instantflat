@@ -4,3 +4,8 @@ node_modules
 data
 .env
 .git
+.stack-data
+.env.*
+test-results
+e2e/.data
+e2e/shots
