@@ -21,9 +21,10 @@ curl -X POST localhost:8080/api/ingest -H "Authorization: Bearer $INGEST_TOKEN" 
 
 ## Entwürfe (Etappe 3)
 - `LLM_PROVIDER=template` (Standard): Bausteintext aus Profil und Inserat, ohne KI.
-- `LLM_PROVIDER=local`: Container `llm` (llama-server mit Ternary-Bonsai-8B, Q2_0, ~2,2 GB). Start: `docker compose --profile llm up -d --build`.
+- `LLM_PROVIDER=local`: Container `llm` (llama-server mit Ternary-Bonsai-8B, PQ2_0, ~2,2 GB). Start: `docker compose --profile llm up -d --build`.
   Das Modell wird beim ersten Start vom Hugging Face (`prism-ml/Ternary-Bonsai-8B-gguf`) in `/DATA/AppData/instantflat/models` geladen und per SHA-256 geprüft.
   Schlägt das Modell fehl oder erfindet Zahlen, fällt die App automatisch auf das Template zurück.
+  **Texte vom lokalen Modell werden im Automodus nie automatisch freigegeben**, sie brauchen deine Sichtprüfung (das Modell erfindet gelegentlich kleine Details). Gemessen auf einem Entwicklungs-PC mit 4 Threads: 10-20 s pro Entwurf, ~3 GiB RAM.
 - Telegram: `TELEGRAM_BOT_TOKEN` und `TELEGRAM_CHAT_ID` in `.env` setzen, sonst bleibt der Bot aus.
 
 ## Browser und Session-Überwachung (Etappe 4)

@@ -43,6 +43,18 @@ describe("Einstellungen, Automodus, Outbox", () => {
     expect(db.prepare("SELECT state FROM listings").get()).toEqual({ state: "freigegeben" });
   });
 
+  it("Auto: Entwurf vom lokalen Modell wird nie automatisch freigegeben", async () => {
+    const local = { name: "local", generate: async () => "Guten Tag, " + "ein ordentlicher Text. ".repeat(15) + "Viele Grüße Max M" };
+    const app2 = await buildApp(loadConfig(env), db, { webDir: "/nonexistent", generator: local });
+    await app2.inject({ method: "PUT", url: "/api/settings", cookies, payload: { mode: "auto" } });
+    await app2.inject({ method: "POST", url: "/api/ingest", headers: bearer, payload: { provider: "immoscout", listings: [{ id: "9", title: "Wohnung", url: "http://x/9" }] } });
+    await until(() => !!db.prepare("SELECT 1 FROM drafts").get());
+    await new Promise((r) => setTimeout(r, 100));
+    expect(db.prepare("SELECT provider FROM drafts").get()).toEqual({ provider: "local" });
+    expect(db.prepare("SELECT state FROM listings").get()).toEqual({ state: "entwurf" });
+    expect(db.prepare("SELECT count(*) c FROM outbox").get()).toEqual({ c: 0 });
+  });
+
   it("Freigabe per API reiht ein; doppelte Freigabe wird abgelehnt", async () => {
     await ingest(app, "1");
     await until(() => !!db.prepare("SELECT 1 FROM drafts").get());

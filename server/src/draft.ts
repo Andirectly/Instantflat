@@ -53,9 +53,30 @@ export type Generator = { name: string; generate(l: ListingRow, p: ProfileData):
 
 export const templateGenerator: Generator = { name: "template", generate: async (l, p) => templateDraft(l, p) };
 
-const SYSTEM = `Du schreibst eine Wohnungsanfrage an einen Vermieter. Deutsch, formell ("Sie"), ca. 900 Zeichen, ohne Betreffzeile.
-Beziehe dich auf 1-2 konkrete Details aus dem Inserat. Verwende AUSSCHLIESSLICH Fakten aus dem Profil und dem Inserat.
-Erfinde nichts, keine Platzhalter in Klammern, keine Zahlen die nicht vorkommen. Beginne mit "Guten Tag," und ende mit Grußformel und Namen.`;
+const SYSTEM = `Du schreibst eine kurze, höfliche Wohnungsanfrage an einen Vermieter, auf Deutsch, mit "Sie", etwa 600 bis 900 Zeichen.
+Regeln:
+- Beginne mit "Guten Tag," und ende mit "Viele Grüße" und dem Namen.
+- Nenne 1 bis 2 konkrete Merkmale aus dem Inserat (zum Beispiel Balkon oder Lage), aber nur solche, die dort wirklich stehen.
+- Verwende ausschließlich die Angaben unter PROFIL. Erfinde nichts: keine Arbeitszeiten, keine Eigenschaften der Wohnung, keine Wünsche, keine Zahlen.
+- Schreibe aus Sicht der Person im PROFIL (ich-Form), nicht über den Vermieter.
+- Keine Platzhalter in Klammern.`;
+
+// Das Profil als beschriftete Zeilen statt JSON: kleine Modelle verwechseln sonst Feldnamen (z. B. Besichtigungszeiten mit Arbeitszeiten).
+function profileLines(p: ProfileData): string {
+  return [
+    `Name: ${p.fullName}`,
+    p.age && `Alter: ${p.age} Jahre`,
+    p.city && `Wohnort: ${p.city}`,
+    p.job && `Beruf: ${p.job}`,
+    p.employment && `Anstellung: ${p.employment}`,
+    p.household && `Haushalt: ${p.household}`,
+    p.pets && `Haustiere: ${p.pets}`,
+    p.moveIn && `Gewünschter Einzug: ${p.moveIn}`,
+    p.viewingTimes && `Zeiten für eine Besichtigung: ${p.viewingTimes}`,
+    p.documentsReady && "Unterlagen: liegen bereit",
+    p.extra && `Weiteres: ${p.extra}`,
+  ].filter(Boolean).join("\n");
+}
 
 export function localGenerator(cfg: Pick<Config, "LLM_URL" | "LLM_MODEL" | "LLM_TIMEOUT_S">, fetchImpl: typeof fetch = fetch): Generator {
   return {
@@ -67,7 +88,7 @@ export function localGenerator(cfg: Pick<Config, "LLM_URL" | "LLM_MODEL" | "LLM_
         headers: { "content-type": "application/json" },
         signal: AbortSignal.timeout(cfg.LLM_TIMEOUT_S * 1000),
         body: JSON.stringify({
-          model: cfg.LLM_MODEL, temperature: 0.7, max_tokens: 500,
+          model: cfg.LLM_MODEL, temperature: 0.3, max_tokens: 500,
           chat_template_kwargs: { enable_thinking: false },
           messages: [{ role: "system", content: SYSTEM }, { role: "user", content: user }],
         }),

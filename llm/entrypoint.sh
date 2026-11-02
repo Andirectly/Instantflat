@@ -1,9 +1,10 @@
 #!/bin/sh
 # Lädt das Modell beim ersten Start in das Volume /models (einmalig ~2,2 GB), prüft die Prüfsumme und startet den Server.
 set -eu
-FILE=/models/Ternary-Bonsai-8B-Q2_0.gguf
-URL=https://huggingface.co/prism-ml/Ternary-Bonsai-8B-gguf/resolve/main/Ternary-Bonsai-8B-Q2_0.gguf
-SHA256=3c8d70470a5d97e5a2b9410ddd899cb740116591462626c60cb2fead6448f60b
+# PQ2_0: passt zum gepinnten PrismML-Fork (die Q2_0-Datei nutzt ein älteres Layout und lädt dort nicht)
+FILE=/models/Ternary-Bonsai-8B-PQ2_0.gguf
+URL=https://huggingface.co/prism-ml/Ternary-Bonsai-8B-gguf/resolve/main/Ternary-Bonsai-8B-PQ2_0.gguf
+SHA256=1376f942aa90e60f7b570c1d81b3916fea1315ff85aa1c4d19006af68fb4b922
 
 if [ ! -f "$FILE" ]; then
   echo "Lade Modell (~2,2 GB) ..."

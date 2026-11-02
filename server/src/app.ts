@@ -63,8 +63,8 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
         await createDraft(db, gen, id);
         await notify(id);
         // Automodus: auch bearbeitete Entwürfe gehen ohne Rückfrage in die Queue (Limits und Nachtruhe gelten im Worker),
-        // aber nur mit bekanntem Ort, wenn ein Radius gilt.
-        if (getMode(db) === "auto" && autoSendable(db, id)) approveDraft(db, id);
+        // aber nur mit bekanntem Ort, wenn ein Radius gilt, und nie mit Text vom lokalen Modell (erfindet gelegentlich Details, braucht Sichtprüfung).
+        if (getMode(db) === "auto" && autoSendable(db, id) && latestDraft(db, id)?.provider !== "local") approveDraft(db, id);
       } catch (e) { app.log.warn({ err: (e as Error).message, id }, "Auto-Entwurf fehlgeschlagen"); }
     }
   }
