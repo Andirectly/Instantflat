@@ -24,7 +24,7 @@ export function Settings() {
     load().catch(() => {});
     api<AppSettings>("/api/settings").then(setCfg).catch(() => {});
     api<{ endpoint: string; token: string }>("/api/ingest-info").then(setIngest).catch(() => {});
-    api<Version>("/api/version").then(setVer).catch(() => {});
+    api<Version>("/api/version?fresh=1").then(setVer).catch(() => {});
     api<{ configured: boolean }>("/api/telegram").then((r) => setTg(r.configured)).catch(() => {});
   }, []);
   const copy = (key: string, text: string) => navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }).catch(() => {});

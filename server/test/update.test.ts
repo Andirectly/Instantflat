@@ -16,6 +16,14 @@ describe("createUpdater", () => {
     expect(f).toHaveBeenCalledTimes(1); // zehn Minuten im Zwischenspeicher
   });
 
+  it("fresh=true umgeht den Zwischenspeicher", async () => {
+    const f = vi.fn().mockResolvedValueOnce(runs("b".repeat(40))).mockResolvedValueOnce(runs("c".repeat(40)));
+    const u = createUpdater({ ...base, BUILD_SHA: "a".repeat(40) }, f);
+    expect((await u.version()).latest).toBe("bbbbbbb");
+    expect((await u.version()).latest).toBe("bbbbbbb"); // gecacht
+    expect((await u.version(true)).latest).toBe("ccccccc"); // frisch
+  });
+
   it("gleicher Stand, Entwicklungsstand oder GitHub nicht erreichbar: kein Update gemeldet", async () => {
     const same = createUpdater({ ...base, BUILD_SHA: "c".repeat(40) }, vi.fn().mockResolvedValue(runs("c".repeat(40))));
     expect((await same.version()).updateAvailable).toBe(false);

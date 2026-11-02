@@ -198,7 +198,7 @@ export async function buildApp(cfg: Config, db: Database.Database, opts: { webDi
   // ---- Einstellungen, Verlauf, Outbox ----
   // Zugangsdaten für Fredys HTTP-Adapter (nur mit Login sichtbar).
   const updater = opts.updater ?? createUpdater(cfg);
-  app.get("/api/version", auth, async () => updater.version());
+  app.get("/api/version", auth, async (req) => updater.version((req.query as { fresh?: string }).fresh === "1"));
   app.post("/api/update", auth, async (_req, reply) => {
     if (!updater.canUpdate) return reply.code(409).send({ error: "Update nicht eingerichtet (Watchtower fehlt in der Compose-Datei)" });
     updater.trigger();

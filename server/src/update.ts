@@ -27,7 +27,8 @@ export function createUpdater(cfg: Pick<Config, "BUILD_SHA" | "UPDATE_URL" | "UP
 
   return {
     canUpdate,
-    async version(): Promise<VersionInfo> {
+    async version(fresh = false): Promise<VersionInfo> {
+      if (fresh) cache = undefined; // Einstellungsseite: immer aktuell nachfragen
       const l = await latest();
       return { current: cfg.BUILD_SHA.slice(0, 7), latest: l?.slice(0, 7) ?? null, updateAvailable: cfg.BUILD_SHA !== "dev" && !!l && l !== cfg.BUILD_SHA, canUpdate };
     },
